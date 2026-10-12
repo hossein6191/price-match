@@ -1,0 +1,14 @@
+{
+  "name": "price-match",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Price Match: a lowest-price guarantee that enforces itself. Validators open the competitor's page on the live web, agree it is the same product and read its price, and the difference comes back from the shop's bond in the same transaction.",
+  "type": "module",
+  "scripts": {
+    "smoke": "node tests/on_chain/smoke.mjs"
+  },
+  "dependencies": {
+    "genlayer-js": "1.1.8",
+    "viem": "2.56.8"
+  }
+}

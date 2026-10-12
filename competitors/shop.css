@@ -1,0 +1,19 @@
+/* The look of the three fictional competitor shops when a browser renders their pages. */
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.5 Georgia, "Times New Roman", serif; color: #1f2328; background: #faf7f0; }
+header { padding: 20px 24px 12px; border-bottom: 3px solid currentColor; }
+header .shop { margin: 0; font: 700 22px/1.2 "Trebuchet MS", Arial, sans-serif; letter-spacing: .02em; }
+header .tagline { margin: 4px 0 0; font-size: 14px; color: #57606a; }
+main { max-width: 640px; padding: 24px; }
+h1 { margin: 0 0 16px; font-size: 24px; line-height: 1.25; }
+table { border-collapse: collapse; width: 100%; margin: 0 0 18px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #d8d2c4; vertical-align: top; }
+th { width: 34%; font-weight: 600; color: #57606a; }
+.price { margin: 0 0 8px; font: 700 20px/1.3 "Trebuchet MS", Arial, sans-serif; }
+footer { padding: 14px 24px 28px; font-size: 13px; color: #57606a; }
+body.northgate { background: #f2f5f9; }
+body.northgate header { color: #1d4e89; }
+body.bright-basket { background: #fbf6e9; }
+body.bright-basket header { color: #9a5b00; }
+body.corner-hardware { background: #f4f1ec; }
+body.corner-hardware header { color: #5b3a29; }

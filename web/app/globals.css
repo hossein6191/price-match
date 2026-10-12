@@ -1,0 +1,407 @@
+@import "tailwindcss";
+
+/* Price Match looks like a supermarket shelf and a till receipt: a clean white floor with a faint
+   shelf-edge stripe, supermarket-yellow price tags with black condensed numerals, a narrow thermal
+   receipt with torn edges that prints each claim's result line by line, red stickers on matched
+   prices, and buttons cut like shelf labels (rectangular, a notched corner, a lip that presses in).
+   The only motion: the conveyor strip of a waiting panel, a receipt printing, and a sticker landing;
+   all three are skipped for anyone who asks for reduced motion. */
+
+@theme {
+  --color-paper: #ffffff;
+  --color-shelf: #f4f6f7;
+  --color-shelf-2: #eaedf0;
+  --color-rail: #d6dce1;
+  --color-rail-deep: #8f9aa3;
+  --color-line: #e1e5e8;
+  --color-line-strong: #c8ced3;
+  --color-ink: #111111;
+  --color-ink-2: #383b3e;
+  --color-ink-3: #686e74;
+  --color-tag: #ffd400;
+  --color-tag-deep: #e5be00;
+  --color-tag-wash: #fff7cc;
+  --color-red: #e1251b;
+  --color-red-ink: #b51b13;
+  --color-red-wash: #fdecea;
+  --color-fresh: #0b7a3b;
+  --color-fresh-ink: #095f2e;
+  --color-fresh-wash: #e7f5ec;
+  --color-amber: #b46a00;
+  --color-amber-wash: #fff3d6;
+  --color-receipt: #fdfcf7;
+  --color-focus: #1f5fd6;
+
+  --font-sans: var(--font-archivo), "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-display: var(--font-barlow), "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, Menlo, Consolas, monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    /* The faint shelf-edge stripe: a hairline rail every 340 px, like shelves on a far wall. */
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 332px,
+      rgba(17, 17, 17, 0.028) 332px,
+      rgba(17, 17, 17, 0.028) 338px,
+      rgba(255, 212, 0, 0.16) 338px,
+      rgba(255, 212, 0, 0.16) 340px
+    );
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    line-height: 1.05;
+    text-transform: uppercase;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  ::selection {
+    background: rgba(255, 212, 0, 0.55);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .display {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .link {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  .kicker {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ---- the shelf edge: a metal rail with its yellow label strip -------------------------------- */
+  .shelf-edge {
+    height: 14px;
+    background:
+      linear-gradient(to bottom, #f1f3f5 0, #dde2e6 55%, #c9d0d6 64%, transparent 64%),
+      linear-gradient(to bottom, transparent 64%, var(--color-tag) 64%, var(--color-tag) 92%, #b99a00 92%);
+    box-shadow: 0 3px 6px -4px rgba(17, 17, 17, 0.35);
+  }
+  .shelf-edge-thin {
+    height: 8px;
+    background: linear-gradient(to bottom, #e9edf0 0, #d2d8dd 60%, var(--color-tag) 60%, var(--color-tag) 100%);
+  }
+
+  /* ---- shelf-label buttons: rectangular, bold, a notched corner, a lip that presses in --------- */
+  .btn {
+    --btn-bg: var(--color-paper);
+    --btn-fg: var(--color-ink);
+    --btn-edge: var(--color-ink);
+    --notch: 12px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0 1.05rem 3px;
+    border: 2px solid var(--btn-edge);
+    background: var(--btn-bg);
+    color: var(--btn-fg);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    max-width: 100%;
+    text-decoration: none;
+    cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - var(--notch)) 0, 100% var(--notch), 100% 100%, 0 100%);
+    box-shadow: inset 0 -4px 0 rgba(17, 17, 17, 0.22);
+    transition: transform 60ms ease, box-shadow 60ms ease, background-color 120ms ease;
+    user-select: none;
+  }
+  .btn::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: var(--notch);
+    height: var(--notch);
+    background: linear-gradient(
+      to bottom left,
+      transparent calc(50% - 2px),
+      var(--btn-edge) calc(50% - 2px),
+      var(--btn-edge) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    );
+    pointer-events: none;
+  }
+  .btn:hover {
+    filter: brightness(0.97);
+  }
+  .btn:active,
+  .btn[data-pressed="true"] {
+    transform: translateY(2px);
+    box-shadow: inset 0 -1px 0 rgba(17, 17, 17, 0.22);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+    box-shadow: inset 0 -4px 0 rgba(17, 17, 17, 0.12);
+  }
+  .btn-tag {
+    --btn-bg: var(--color-tag);
+  }
+  .btn-ink {
+    --btn-bg: var(--color-ink);
+    --btn-fg: #ffffff;
+    --btn-edge: var(--color-ink);
+    box-shadow: inset 0 -4px 0 rgba(255, 212, 0, 0.9);
+  }
+  .btn-ink:active,
+  .btn-ink[data-pressed="true"] {
+    box-shadow: inset 0 -1px 0 rgba(255, 212, 0, 0.9);
+  }
+  .btn-red {
+    --btn-bg: var(--color-red);
+    --btn-fg: #ffffff;
+    --btn-edge: var(--color-red-ink);
+  }
+  .btn-sm {
+    --notch: 9px;
+    min-height: 34px;
+    padding: 0 0.7rem 3px;
+    font-size: 15px;
+  }
+  .btn-block {
+    display: flex;
+    width: 100%;
+  }
+
+  /* ---- the price tag ------------------------------------------------------------------------- */
+  .tag {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    background: var(--color-tag);
+    color: var(--color-ink);
+    border: 2px solid var(--color-ink);
+    box-shadow: 3px 3px 0 rgba(17, 17, 17, 0.9);
+  }
+  .tag-hole::before {
+    content: "";
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    margin-top: -4.5px;
+    border-radius: 999px;
+    background: var(--color-paper);
+    border: 2px solid var(--color-ink);
+  }
+
+  /* ---- the red sticker ------------------------------------------------------------------------ */
+  .sticker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 999px;
+    background: var(--color-red);
+    color: #ffffff;
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    line-height: 0.95;
+    text-transform: uppercase;
+    box-shadow:
+      0 0 0 3px #ffffff,
+      0 0 0 4.5px var(--color-red),
+      0 6px 10px -4px rgba(17, 17, 17, 0.45);
+    transform: rotate(-11deg);
+  }
+  .sticker-land {
+    animation: sticker-land 380ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  }
+  .sticker-quiet {
+    background: var(--color-ink);
+    box-shadow:
+      0 0 0 3px #ffffff,
+      0 0 0 4.5px var(--color-ink),
+      0 6px 10px -4px rgba(17, 17, 17, 0.4);
+  }
+
+  /* ---- the thermal receipt ---------------------------------------------------------------------- */
+  .receipt-wrap {
+    filter: drop-shadow(0 1px 1px rgba(17, 17, 17, 0.18)) drop-shadow(0 6px 10px rgba(17, 17, 17, 0.1));
+  }
+  .receipt {
+    --zz: 12px;
+    background: var(--color-receipt);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #1c1c1c;
+    padding: calc(var(--zz) + 10px) 18px calc(var(--zz) + 12px);
+    mask:
+      conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--zz) 51% repeat-x,
+      conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--zz) 51% repeat-x;
+  }
+  .receipt-rule {
+    border-top: 1.5px dashed rgba(17, 17, 17, 0.45);
+    margin: 6px 0;
+  }
+  .receipt-line {
+    animation: receipt-print 160ms ease-out both;
+    animation-delay: calc(var(--i, 0) * 170ms);
+  }
+
+  /* ---- the waiting panel's conveyor strip -------------------------------------------------------- */
+  .conveyor {
+    height: 8px;
+    background: repeating-linear-gradient(90deg, #2a2d30 0 22px, #4a5056 22px 25px);
+  }
+  .conveyor-run {
+    background-size: 25px 8px;
+    animation: conveyor 900ms linear infinite;
+  }
+
+  /* ---- a talker chip: the little card that hangs off a shelf ------------------------------------ */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 32px;
+    padding: 0.2rem 0.6rem;
+    border: 1.5px solid var(--color-line-strong);
+    background: var(--color-paper);
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--color-ink-2);
+    text-align: left;
+  }
+  .chip:hover {
+    border-color: var(--color-ink);
+  }
+  .chip[aria-pressed="true"] {
+    border-color: var(--color-ink);
+    background: var(--color-tag);
+    color: var(--color-ink);
+  }
+
+  .field {
+    width: 100%;
+    min-height: 44px;
+    border: 2px solid var(--color-ink);
+    background: var(--color-paper);
+    padding: 0.55rem 0.7rem;
+    font-size: 15px;
+  }
+  .field:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.8);
+  }
+  .field-label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-2);
+  }
+
+  .card {
+    border: 2px solid var(--color-ink);
+    background: var(--color-paper);
+  }
+  .card-soft {
+    border: 1.5px solid var(--color-line-strong);
+    background: var(--color-paper);
+  }
+}
+
+@keyframes conveyor {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 25px 0;
+  }
+}
+
+@keyframes receipt-print {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes sticker-land {
+  from {
+    opacity: 0;
+    transform: rotate(-30deg) scale(1.6);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-11deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conveyor-run,
+  .receipt-line,
+  .sticker-land {
+    animation: none !important;
+  }
+  .btn {
+    transition: none;
+  }
+}
