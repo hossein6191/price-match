@@ -1,0 +1,134 @@
+[keeper] starting 2026-10-12T21:37:17.669Z
+[21:37:23] SHOP     0x04dB2c89E50662379083756900224964AcddEa6D
+           BUYER    0xEE259c1cE1341412DCA9cc5A927a244c5131CC83
+           STRANGER 0xEBaa2b39996Cc53209b95A2CD1D8802fbB35369f
+           pages https://raw.githubusercontent.com/hossein6191/price-match/2f4e6ab683aa1cc1e3b97c9785de461de07b3f92/competitors/
+
+[21:37:23] ---- phase A: deploy, the shop, its products, its bond, three purchases
+      [21:38:01] SHOP deploy price_match.py  0xf45391b060fe8dab4ec9b67082beda537cecc88337affbe8e3976fae77a28d3a  5 agree, 0 disagree, 0 idle  SUCCESS  0x8F861A0e6c1A18936df901828aAD5C9b50c9C073
+      Price Match at 0x8F861A0e6c1A18936df901828aAD5C9b50c9C073
+      [21:38:42] SHOP open_shop(Harbour Lane Goods, competitors/corner-hardware/"])  0x001c3898f088ecf3f0ea6d375f932e6b260eac24b2eb8e9c4042c2c0b3066408  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  SHOP opens S1, Harbour Lane Goods, accepting pages below three competitor prefixes  - 3 agree, 0 disagree, 2 idle  !{"ok": true, "shop": "S1", "owner": "0x04db2c89e50662379083756900224964acddea6d", "name": "Harbour Lane Goods", "compet
+      [21:39:21] SHOP list_product(S1, 3 kettle, 1.7 L, brushed steel, w, sealed in the original box., 2000000000000000000, 1800)  0xbbfd606f7aa7828a696c43471b0fe0d457c5757ab1ffe149347b0cbcdad041e3  5 agree, 0 disagree, 0 idle  SUCCESS
+PASS  SHOP lists Lumio K3 kettle, 1.7 L, brushed steel at 2 GEN with a 30-minute guarantee window  - 5 agree, 0 disagree, 0 idle  P1
+      [21:40:01] SHOP list_product(S1, e X200 wireless earbuds, black, w, sealed in the original box., 3500000000000000000, 1800)  0x0f806d9a78de2834ddacfe62bcfee6664740651acfd79b261b2ed3b09ea0e9b6  4 agree, 0 disagree, 1 idle  SUCCESS
+PASS  SHOP lists Arcwave X200 wireless earbuds, black at 3.5 GEN with a 30-minute guarantee window  - 4 agree, 0 disagree, 1 idle  P2
+      [21:40:38] SHOP list_product(S1, Tidewell 20 L dry bag, orange, : new, with the original tags., 1200000000000000000, 1800)  0x2e3c2bb3ab9d6e0a8ccd9847cb49e97ce343ac81ded4f997f0da9e9bf54dff60  5 agree, 0 disagree, 0 idle  SUCCESS
+PASS  SHOP lists Tidewell 20 L dry bag, orange at 1.2 GEN with a 30-minute guarantee window  - 5 agree, 0 disagree, 0 idle  P3
+      [21:41:18] STRANGER list_product(S1, 3 kettle, 1.7 L, brushed steel, w, sealed in the original box., 2000000000000000000, 1800)  0x64e748f365e59d133e38062dc571c44ef289d75ef093df7cb48664d7b3fb49a4  3 agree, 0 disagree, 2 idle  ERROR
+PASS  STRANGER may not list a product in S1  - 3 agree, 0 disagree, 2 idle  [EXPECTED] only the owner of S1 may list a product in it
+      [21:41:57] BUYER buy(P1) +2 GEN  0xe8f9b54fc3cb0bca6be154a30f567321cb4fd25590564016087476984f08f286  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  a purchase before the shop has a bond is refused, and the 2.00 GEN comes back in the same transaction  - 3 agree, 0 disagree, 2 idle  the free bond of S1 is 0 atto and does not cover the price; a sale is taken only while the bond covers the most a match can give back
+      [21:42:36] SHOP fund(S1) +7 GEN  0xeeb375c5911ccd553821ef9c8368a6c90daf0d7a0e69798e390e4b2680fa59a0  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  SHOP funds a 7 GEN guarantee bond  - 3 agree, 0 disagree, 2 idle  {"ok": true, "shop": "S1", "added": "7000000000000000000", "bond": "7000000000000000000", "reserved": "0", "fr
+      [21:43:16] BUYER deposit() +0.05 GEN  0x6b6025d6371024ad002d06dcce2c8fa14cd110ccc27f4eb70a0e3e4b565fc206  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  BUYER deposits 0.05 GEN of claim-fee credit  - 3 agree, 0 disagree, 2 idle  {"ok": true, "address": "0xee259c1ce1341412dca9cc5a927a244c5131cc83", "added": "50000000000000000", 
+      [21:43:53] BUYER buy(P1) +2 GEN  0x368c57d610920b2393449487f6e5e232f2857ae92572563f1f7e49bd1a9f3f14  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  BUYER buys Lumio K3 kettle, 1.7 L, brushed steel: the 2 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved  - 3 agree, 0 disagree, 2 idle  O1
+      [21:44:38] BUYER buy(P2) +3.5 GEN  0x75fe92b6b9a2313181e35cb56bbcfba9348ece757fbb75e7c186fc857d9e12ea  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  BUYER buys Arcwave X200 wireless earbuds, black: the 3.5 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved  - 3 agree, 0 disagree, 2 idle  O2
+      [21:45:18] BUYER buy(P3) +1.2 GEN  0x35fab3c584e14339932567f8ec29c876c22fec9b23cab3115d69ae1ae9e4f817  5 agree, 0 disagree, 0 idle  SUCCESS
+PASS  BUYER buys Tidewell 20 L dry bag, orange: the 1.2 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved  - 5 agree, 0 disagree, 0 idle  O3
+      [21:45:58] SHOP withdraw_bond(S1, 7000000000000000000)  0xf30832a8ac249f787f045f600068109aa3bd592ff002fc8ba660d9f1340636bf  3 agree, 0 disagree, 2 idle  ERROR
+PASS  SHOP may not withdraw bond reserved for open orders: only 0.30 GEN of the 7 is free  - 3 agree, 0 disagree, 2 idle  [EXPECTED] only 300000000000000000 atto of the bond of S1 is free; 6700000000000000000 is reserved for open orders until
+
+[21:45:59] ---- phase B: the claims, each read from the live web by every validator
+      [21:46:38] STRANGER claim(O1, northgate/lumio-k3-kettle.html)  0xcd3728ae943946ffd85fdd9340e062003d961cb0e14bdd76f4e7b0afcfd48c30  3 agree, 0 disagree, 2 idle  ERROR
+PASS  STRANGER may not claim on BUYER's order O1  - 3 agree, 0 disagree, 2 idle  [EXPECTED] only the buyer of O1 may claim on it
+      [21:47:14] BUYER claim(O3, /unlisted/lumio-k3-kettle.html)  0xab8a24a746571b0a8f717ee5595665c160928e3bdb213e8fdba334255814421c  3 agree, 0 disagree, 2 idle  ERROR
+PASS  a page below no accepted prefix is refused before anything is fetched  - 3 agree, 0 disagree, 2 idle  [EXPECTED] the page is not below any competitor prefix S1 accepted; shop(S1) lists them
+      [21:48:12] BUYER claim(O1, northgate/lumio-k3-kettle.html)  0x2f8560bf10fa0504be9fcbaf06f01904969f83e82497ba84cef765bf059140fe  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  the validators carry one value for the kettle page in one consensus round  - 3 agree, 0 disagree, 2 idle  -> {"product":"same","price":"1800000000000000000"}
+PASS  Northgate's page offers the same kettle at 1.80 GEN: matched  - matched
+PASS  in the same transaction the 0.20 GEN difference reaches BUYER from the reserved bond, and the order closes  - {"buyer":"200000000000000000","shop":"0"}
+      [21:49:07] BUYER claim(O2, -x200-earbuds-refurbished.html)  0x3f1d4b2e8130a27af326db6cc1699dace6b8d6b755632a080ad7522eaf45a7bc  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  a refurbished pair of the same earbuds is another product: different, and BUYER's 0.01 GEN claim fee goes to SHOP  - 3 agree, 0 disagree, 2 idle  {"outcome":"different","delta":{"buyer":"0","shop":"10000000000000000"}}
+      [21:50:10] BUYER claim(O3, gate/tidewell-dry-bag-20l.html)  0xc08755aeb3f851a6f601bac6ec0c52698085971bebaff66e1a476ccf80c977fe  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  the same dry bag at 1.45 GEN is not cheaper than our 1.20 GEN: nothing moves, the fee stays  - 3 agree, 0 disagree, 2 idle  {"outcome":"not_cheaper","price":"1450000000000000000"}
+PASS  claims_of(O1) shows the page, the agreed value and the refund  - {"claim":"C1","order":"O1","url":"https://raw.githubusercontent.com/hossein6191/price-match/2f4e6ab683aa1cc1e3b97c9785de461de07b3f92/competitors/northgate/lumio-k3-kettle.html","product":"same","price":"1800000000000000000","outcome":"matched","refund":"200000000000000000","fee_to":"buyer","at":1791841636}
+
+[21:50:12] ---- phase C: the windows close
+[keeper] resuming 2026-10-13T09:44:14.833Z
+[09:44:17] SHOP     0x04dB2c89E50662379083756900224964AcddEa6D
+           BUYER    0xEE259c1cE1341412DCA9cc5A927a244c5131CC83
+           STRANGER 0xEBaa2b39996Cc53209b95A2CD1D8802fbB35369f
+           pages https://raw.githubusercontent.com/hossein6191/price-match/2f4e6ab683aa1cc1e3b97c9785de461de07b3f92/competitors/
+
+[09:44:17] ---- phase A: deploy, the shop, its products, its bond, three purchases
+      Price Match at 0x8F861A0e6c1A18936df901828aAD5C9b50c9C073
+PASS  SHOP opens S1, Harbour Lane Goods, accepting pages below three competitor prefixes  - 3 agree, 0 disagree, 2 idle  !{"ok": true, "shop": "S1", "owner": "0x04db2c89e50662379083756900224964acddea6d", "name": "Harbour Lane Goods", "compet
+PASS  SHOP lists Lumio K3 kettle, 1.7 L, brushed steel at 2 GEN with a 30-minute guarantee window  - 5 agree, 0 disagree, 0 idle  P1
+PASS  SHOP lists Arcwave X200 wireless earbuds, black at 3.5 GEN with a 30-minute guarantee window  - 4 agree, 0 disagree, 1 idle  P2
+PASS  SHOP lists Tidewell 20 L dry bag, orange at 1.2 GEN with a 30-minute guarantee window  - 5 agree, 0 disagree, 0 idle  P3
+PASS  STRANGER may not list a product in S1  - 3 agree, 0 disagree, 2 idle  [EXPECTED] only the owner of S1 may list a product in it
+PASS  a purchase before the shop has a bond is refused, and the 2.00 GEN comes back in the same transaction  - 3 agree, 0 disagree, 2 idle  the free bond of S1 is 0 atto and does not cover the price; a sale is taken only while the bond covers the most a match can give back
+PASS  SHOP funds a 7 GEN guarantee bond  - 3 agree, 0 disagree, 2 idle  {"ok": true, "shop": "S1", "added": "7000000000000000000", "bond": "7000000000000000000", "reserved": "0", "fr
+PASS  BUYER deposits 0.05 GEN of claim-fee credit  - 3 agree, 0 disagree, 2 idle  {"ok": true, "address": "0xee259c1ce1341412dca9cc5a927a244c5131cc83", "added": "50000000000000000", 
+PASS  BUYER buys Lumio K3 kettle, 1.7 L, brushed steel: the 2 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved  - 3 agree, 0 disagree, 2 idle  O1
+PASS  BUYER buys Arcwave X200 wireless earbuds, black: the 3.5 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved  - 3 agree, 0 disagree, 2 idle  O2
+PASS  BUYER buys Tidewell 20 L dry bag, orange: the 1.2 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved  - 5 agree, 0 disagree, 0 idle  O3
+PASS  SHOP may not withdraw bond reserved for open orders: only 0.30 GEN of the 7 is free  - 3 agree, 0 disagree, 2 idle  [EXPECTED] only 300000000000000000 atto of the bond of S1 is free; 6700000000000000000 is reserved for open orders until
+
+[09:44:17] ---- phase B: the claims, each read from the live web by every validator
+PASS  STRANGER may not claim on BUYER's order O1  - 3 agree, 0 disagree, 2 idle  [EXPECTED] only the buyer of O1 may claim on it
+PASS  a page below no accepted prefix is refused before anything is fetched  - 3 agree, 0 disagree, 2 idle  [EXPECTED] the page is not below any competitor prefix S1 accepted; shop(S1) lists them
+PASS  the validators carry one value for the kettle page in one consensus round  - 3 agree, 0 disagree, 2 idle  -> {"product":"same","price":"1800000000000000000"}
+PASS  Northgate's page offers the same kettle at 1.80 GEN: matched  - matched
+PASS  in the same transaction the 0.20 GEN difference reaches BUYER from the reserved bond, and the order closes  - {"buyer":"200000000000000000","shop":"0"}
+PASS  a refurbished pair of the same earbuds is another product: different, and BUYER's 0.01 GEN claim fee goes to SHOP  - 3 agree, 0 disagree, 2 idle  {"outcome":"different","delta":{"buyer":"0","shop":"10000000000000000"}}
+PASS  the same dry bag at 1.45 GEN is not cheaper than our 1.20 GEN: nothing moves, the fee stays  - 3 agree, 0 disagree, 2 idle  {"outcome":"not_cheaper","price":"1450000000000000000"}
+PASS  claims_of(O1) shows the page, the agreed value and the refund  - {"claim":"C1","order":"O1","url":"https://raw.githubusercontent.com/hossein6191/price-match/2f4e6ab683aa1cc1e3b97c9785de461de07b3f92/competitors/northgate/lumio-k3-kettle.html","product":"same","price":"1800000000000000000","outcome":"matched","refund":"200000000000000000","fee_to":"buyer","at":1791841636}
+
+[09:44:17] ---- phase C: the windows close
+      [09:45:00] BUYER claim(O3, ware/tidewell-dry-bag-20l.html)  0xad816831580920fc700908e12db3084fb7b31a3b19281240f846017514f32ee1  3 agree, 0 disagree, 2 idle  ERROR
+PASS  after the window a claim on O3 is refused, even with a page that would have matched  - 3 agree, 0 disagree, 2 idle  [EXPECTED] the guarantee window of O3 has closed; release(O3) frees the reserved bond
+      [09:45:42] STRANGER release(O2)  0xb5dc8fdc333249af4600366b7478b769207a2d1940e118440924975c5a9817df  5 agree, 0 disagree, 0 idle  SUCCESS
+PASS  STRANGER releases O2 after its window: its 3.50 GEN reservation goes back to the free bond, nothing leaves the contract  - 5 agree, 0 disagree, 0 idle  {"ok": true, "order": "O2", "status": "released", "freed": "3500000000000000000", "shop": "S1", "free": "56000
+      [09:46:23] STRANGER release(O3)  0x44f6e38cc0ab1988734f470ba537e37337e37574b2761a3cf827c1c9b23ff1f8  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  STRANGER releases O3  - 3 agree, 0 disagree, 2 idle  {"ok": true, "order": "O3", "status": "released", "freed": "1200000000000000000", "shop": "S1", "free": "68000
+      [09:47:04] STRANGER release(O3)  0xe9cf438cbd1abd16a965d1c549706ed2ff90c52fca8ba863250bea290c3fb1b4  4 agree, 0 disagree, 1 idle  ERROR
+PASS  a second release of O3 is refused  - 4 agree, 0 disagree, 1 idle  [EXPECTED] O3 is released; its reservation was already released
+      [09:47:44] SHOP withdraw_bond(S1, 6800000000000000000)  0x6884411b020ab37a76199d1aee865ab8f6bf1696d01d83f74461c63cf0efbe5c  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  SHOP withdraws the whole remaining bond, 6.80 GEN  - 3 agree, 0 disagree, 2 idle  {"shop":"6800000000000000000"}
+      [09:48:25] BUYER withdraw()  0x3275be1708edb94d3c0671b1fc25c67cca4941ec560e7c0c2e2e2f78c3681059  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  BUYER withdraws the 0.04 GEN of credit left  - 3 agree, 0 disagree, 2 idle  {"buyer":"40000000000000000"}
+
+[09:48:26] ---- phase D: the code read back, the views, the balances
+PASS  the code deployed at 0x8F861A0e6c1A18936df901828aAD5C9b50c9C073 is byte for byte contracts/price_match.py  - 68303 bytes, sha256 d15209b78ab1f76afce01e2a0227590719be38694d81612c1f62c9e3707bcb06
+PASS  order(O1) reads matched: 0.20 GEN refunded, nothing reserved  - {"status":"matched","refunded":"200000000000000000"}
+PASS  shop(S1) reads an empty bond, nothing reserved, 6.70 GEN of sales, 0.20 GEN refunded and 0.01 GEN of fees won  - {"bond":"0","sales":"6700000000000000000","refunded":"200000000000000000","fees_won":"10000000000000000"}
+PASS  orders_of(BUYER) lists the three orders and no credit left, and finds the address in any letter case  - {"total":3,"credit":"0"}
+PASS  stats(): one shop, three products, three orders, one matched, one different, one not cheaper, two released, one refused payment, nothing held  - {"shops":1,"products":3,"orders":3,"claims":3,"judged":3,"matched":1,"not_cheaper":1,"different":1,"unclear":0,"released":2,"open_orders":0,"bonds":"0","reserved":"0","credits":"0","held":"0","funded":"7000000000000000000","withdrawn":"6800000000000000000","sales":"6700000000000000000","refunded":"200000000000000000","fees_to_shops":"10000000000000000","deposited":"50000000000000000","credit_withdrawn":"40000000000000000","refused_payments":1,"returned":"2000000000000000000"}
+PASS  rules() publishes the questions word for word, the comparison and the combine table  - {"product": "same" | "different" | "unclear", "price": "<atto>" or ""}
+PASS  the contract's own balance is zero  - 0
+PASS  every account ends where the money table says: SHOP up 6.51 GEN, BUYER down 6.51 GEN, STRANGER whole  - SHOP 6.51  BUYER -6.51  STRANGER 0
+
+34 passed, 0 failed
+Price Match: 0x8F861A0e6c1A18936df901828aAD5C9b50c9C073  https://explorer-studio.genlayer.com/address/0x8F861A0e6c1A18936df901828aAD5C9b50c9C073
+transactions: 24 in 24 steps; sent a second time: none
+deploy            0xf45391b060fe8dab4ec9b67082beda537cecc88337affbe8e3976fae77a28d3a 5 agree, 0 disagree, 0 idle SUCCESS
+openShop          0x001c3898f088ecf3f0ea6d375f932e6b260eac24b2eb8e9c4042c2c0b3066408 3 agree, 0 disagree, 2 idle SUCCESS
+list_kettle       0xbbfd606f7aa7828a696c43471b0fe0d457c5757ab1ffe149347b0cbcdad041e3 5 agree, 0 disagree, 0 idle SUCCESS
+list_earbuds      0x0f806d9a78de2834ddacfe62bcfee6664740651acfd79b261b2ed3b09ea0e9b6 4 agree, 0 disagree, 1 idle SUCCESS
+list_bag          0x2e3c2bb3ab9d6e0a8ccd9847cb49e97ce343ac81ded4f997f0da9e9bf54dff60 5 agree, 0 disagree, 0 idle SUCCESS
+listStranger      0x64e748f365e59d133e38062dc571c44ef289d75ef093df7cb48664d7b3fb49a4 3 agree, 0 disagree, 2 idle ERROR
+buyUncovered      0xe8f9b54fc3cb0bca6be154a30f567321cb4fd25590564016087476984f08f286 3 agree, 0 disagree, 2 idle SUCCESS
+fundBond          0xeeb375c5911ccd553821ef9c8368a6c90daf0d7a0e69798e390e4b2680fa59a0 3 agree, 0 disagree, 2 idle SUCCESS
+deposit           0x6b6025d6371024ad002d06dcce2c8fa14cd110ccc27f4eb70a0e3e4b565fc206 3 agree, 0 disagree, 2 idle SUCCESS
+buy_kettle        0x368c57d610920b2393449487f6e5e232f2857ae92572563f1f7e49bd1a9f3f14 3 agree, 0 disagree, 2 idle SUCCESS
+buy_earbuds       0x75fe92b6b9a2313181e35cb56bbcfba9348ece757fbb75e7c186fc857d9e12ea 3 agree, 0 disagree, 2 idle SUCCESS
+buy_bag           0x35fab3c584e14339932567f8ec29c876c22fec9b23cab3115d69ae1ae9e4f817 5 agree, 0 disagree, 0 idle SUCCESS
+withdrawReserved  0xf30832a8ac249f787f045f600068109aa3bd592ff002fc8ba660d9f1340636bf 3 agree, 0 disagree, 2 idle ERROR
+claimStranger     0xcd3728ae943946ffd85fdd9340e062003d961cb0e14bdd76f4e7b0afcfd48c30 3 agree, 0 disagree, 2 idle ERROR
+claimOutside      0xab8a24a746571b0a8f717ee5595665c160928e3bdb213e8fdba334255814421c 3 agree, 0 disagree, 2 idle ERROR
+claimKettle       0x2f8560bf10fa0504be9fcbaf06f01904969f83e82497ba84cef765bf059140fe 3 agree, 0 disagree, 2 idle SUCCESS
+claimEarbuds      0x3f1d4b2e8130a27af326db6cc1699dace6b8d6b755632a080ad7522eaf45a7bc 3 agree, 0 disagree, 2 idle SUCCESS
+claimBag          0xc08755aeb3f851a6f601bac6ec0c52698085971bebaff66e1a476ccf80c977fe 3 agree, 0 disagree, 2 idle SUCCESS
+claimLate         0xad816831580920fc700908e12db3084fb7b31a3b19281240f846017514f32ee1 3 agree, 0 disagree, 2 idle ERROR
+releaseEarbuds    0xb5dc8fdc333249af4600366b7478b769207a2d1940e118440924975c5a9817df 5 agree, 0 disagree, 0 idle SUCCESS
+releaseBag        0x44f6e38cc0ab1988734f470ba537e37337e37574b2761a3cf827c1c9b23ff1f8 3 agree, 0 disagree, 2 idle SUCCESS
+releaseAgain      0xe9cf438cbd1abd16a965d1c549706ed2ff90c52fca8ba863250bea290c3fb1b4 4 agree, 0 disagree, 1 idle ERROR
+withdrawBond      0x6884411b020ab37a76199d1aee865ab8f6bf1696d01d83f74461c63cf0efbe5c 3 agree, 0 disagree, 2 idle SUCCESS
+withdrawCredit    0x3275be1708edb94d3c0671b1fc25c67cca4941ec560e7c0c2e2e2f78c3681059 3 agree, 0 disagree, 2 idle SUCCESS
+
+exit 0

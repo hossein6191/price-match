@@ -410,7 +410,45 @@ line.
 
 ## Evidence
 
-The on-chain run is recorded here once it has run.
+Run on 12 and 13 October 2026 on GenLayer Studio (chain 61999) by `tests/on_chain/smoke.mjs`, from three generated
+accounts, one per role: **SHOP**, **BUYER** and **STRANGER**. The competitor pages were the files in `competitors/`
+read from `raw.githubusercontent.com` pinned to commit `2f4e6ab683aa1cc1e3b97c9785de461de07b3f92`. **34 checks passed,
+0 failed**; the whole log is `tests/on_chain/smoke-run.log`. The run paused overnight during the 30-minute windows and
+resumed from its state file: 24 transactions in 24 steps, none sent twice.
+
+Register [`0x8F861A0e6c1A18936df901828aAD5C9b50c9C073`](https://explorer-studio.genlayer.com/address/0x8F861A0e6c1A18936df901828aAD5C9b50c9C073).
+`gen_getContractCode` on it returns `contracts/price_match.py` byte for byte (68,303 bytes, sha256
+`d15209b78ab1f76afce01e2a0227590719be38694d81612c1f62c9e3707bcb06`).
+
+| call | by | transaction | result |
+|---|---|---|---|
+| deploy `contracts/price_match.py` | SHOP | [0xf45391b0…](https://explorer-studio.genlayer.com/tx/0xf45391b060fe8dab4ec9b67082beda537cecc88337affbe8e3976fae77a28d3a) | register `0x8F861A0e…C073`; `gen_getContractCode` returns the repository file byte for byte (sha256 `d15209b7…`) |
+| open S1, Harbour Lane Goods, accepting pages below the three competitor prefixes | SHOP | [0x001c3898…](https://explorer-studio.genlayer.com/tx/0x001c3898f088ecf3f0ea6d375f932e6b260eac24b2eb8e9c4042c2c0b3066408) | S1 open |
+| list the Lumio K3 kettle (2 GEN), the Arcwave X200 earbuds (3.5 GEN) and the Tidewell 20 L dry bag (1.2 GEN), each with a 30-minute guarantee window | SHOP | see result | P1, P2, P3: [0xbbfd606f…](https://explorer-studio.genlayer.com/tx/0xbbfd606f7aa7828a696c43471b0fe0d457c5757ab1ffe149347b0cbcdad041e3), [0x0f806d9a…](https://explorer-studio.genlayer.com/tx/0x0f806d9a78de2834ddacfe62bcfee6664740651acfd79b261b2ed3b09ea0e9b6), [0x2e3c2bb3…](https://explorer-studio.genlayer.com/tx/0x2e3c2bb3ab9d6e0a8ccd9847cb49e97ce343ac81ded4f997f0da9e9bf54dff60) |
+| a stranger lists a product in S1 | STRANGER | [0x64e748f3…](https://explorer-studio.genlayer.com/tx/0x64e748f365e59d133e38062dc571c44ef289d75ef093df7cb48664d7b3fb49a4) | refused: only the owner of S1 may |
+| a purchase before the shop has any bond | BUYER | [0xe8f9b54f…](https://explorer-studio.genlayer.com/tx/0xe8f9b54fc3cb0bca6be154a30f567321cb4fd25590564016087476984f08f286) | refused, `ok: false`; **the 2 GEN came back in the same transaction** |
+| fund a 7 GEN guarantee bond | SHOP | [0xeeb375c5…](https://explorer-studio.genlayer.com/tx/0xeeb375c5911ccd553821ef9c8368a6c90daf0d7a0e69798e390e4b2680fa59a0) | bond 7 GEN, all free |
+| deposit 0.05 GEN of claim-fee credit | BUYER | [0x6b6025d6…](https://explorer-studio.genlayer.com/tx/0x6b6025d6371024ad002d06dcce2c8fa14cd110ccc27f4eb70a0e3e4b565fc206) | credit 0.05 GEN |
+| buy the kettle, the earbuds and the dry bag | BUYER | see result | O1, O2, O3: [0x368c57d6…](https://explorer-studio.genlayer.com/tx/0x368c57d610920b2393449487f6e5e232f2857ae92572563f1f7e49bd1a9f3f14), [0x75fe92b6…](https://explorer-studio.genlayer.com/tx/0x75fe92b6b9a2313181e35cb56bbcfba9348ece757fbb75e7c186fc857d9e12ea), [0x35fab3c5…](https://explorer-studio.genlayer.com/tx/0x35fab3c584e14339932567f8ec29c876c22fec9b23cab3115d69ae1ae9e4f817); each price reached SHOP in the same transaction and the same amount of bond was reserved |
+| withdraw the whole 7 GEN bond while three orders are open | SHOP | [0xf30832a8…](https://explorer-studio.genlayer.com/tx/0xf30832a8ac249f787f045f600068109aa3bd592ff002fc8ba660d9f1340636bf) | refused: only 0.30 GEN is free, 6.70 GEN is reserved for the open orders |
+| a stranger claims on the buyer's order | STRANGER | [0xcd3728ae…](https://explorer-studio.genlayer.com/tx/0xcd3728ae943946ffd85fdd9340e062003d961cb0e14bdd76f4e7b0afcfd48c30) | refused: only the buyer of O1 may |
+| claim with a page below no accepted prefix | BUYER | [0xab8a24a7…](https://explorer-studio.genlayer.com/tx/0xab8a24a746571b0a8f717ee5595665c160928e3bdb213e8fdba334255814421c) | refused before anything is fetched |
+| claim O1 with Northgate's kettle page | BUYER | [0x2f8560bf…](https://explorer-studio.genlayer.com/tx/0x2f8560bf10fa0504be9fcbaf06f01904969f83e82497ba84cef765bf059140fe) | validators read the page: `{"product": "same", "price": "1800000000000000000"}`, 3 agree and 2 idle; **matched, and the 0.20 GEN difference reached the buyer from the reserved bond in the same transaction** |
+| claim O2 with a page for the refurbished earbuds | BUYER | [0x3f1d4b2e…](https://explorer-studio.genlayer.com/tx/0x3f1d4b2e8130a27af326db6cc1699dace6b8d6b755632a080ad7522eaf45a7bc) | **different**, 3 agree and 2 idle; the 0.01 GEN claim fee went to the shop |
+| claim O3 with a page selling the same dry bag for 1.45 GEN | BUYER | [0xc08755ae…](https://explorer-studio.genlayer.com/tx/0xc08755aeb3f851a6f601bac6ec0c52698085971bebaff66e1a476ccf80c977fe) | **not cheaper** (`1450000000000000000` atto read from the page); nothing moved, the fee came back |
+| claim O3 again after its window closed, with a page that would have matched | BUYER | [0xad816831…](https://explorer-studio.genlayer.com/tx/0xad816831580920fc700908e12db3084fb7b31a3b19281240f846017514f32ee1) | refused: the guarantee window has closed |
+| release O2 and O3 after their windows | STRANGER | see result | [0xb5dc8fdc…](https://explorer-studio.genlayer.com/tx/0xb5dc8fdc333249af4600366b7478b769207a2d1940e118440924975c5a9817df), [0x44f6e38c…](https://explorer-studio.genlayer.com/tx/0x44f6e38cc0ab1988734f470ba537e37337e37574b2761a3cf827c1c9b23ff1f8); their 3.50 and 1.20 GEN reservations went back to the free bond, nothing left the contract |
+| release O3 a second time | STRANGER | [0xe9cf438c…](https://explorer-studio.genlayer.com/tx/0xe9cf438cbd1abd16a965d1c549706ed2ff90c52fca8ba863250bea290c3fb1b4) | refused: already released |
+| withdraw the remaining 6.80 GEN bond | SHOP | [0x6884411b…](https://explorer-studio.genlayer.com/tx/0x6884411b020ab37a76199d1aee865ab8f6bf1696d01d83f74461c63cf0efbe5c) | paid out |
+| withdraw the 0.04 GEN of credit left | BUYER | [0x3275be17…](https://explorer-studio.genlayer.com/tx/0x3275be1708edb94d3c0671b1fc25c67cca4941ec560e7c0c2e2e2f78c3681059) | paid out |
+
+At the end `stats()` read one shop, three products, three orders and three judged claims: one matched, one
+different, one not cheaper, two released, nothing reserved and no credit held. The contract's own balance was zero, and
+every account ended where the money table says: SHOP up 6.51 GEN (6.70 GEN of sales and the 0.01 GEN fee, less the
+0.20 GEN refund), BUYER down 6.51 GEN, STRANGER whole.
+
+The pages that show the product with no price (for example `competitors/corner-hardware/lumio-k3-kettle.html`), which
+should come back unclear, are covered by the tests and offered on the site, but were not part of this run.
 
 ## Licence
 
