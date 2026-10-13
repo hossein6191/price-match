@@ -450,6 +450,9 @@ every account ended where the money table says: SHOP up 6.51 GEN (6.70 GEN of sa
 The pages that show the product with no price (for example `competitors/corner-hardware/lumio-k3-kettle.html`), which
 should come back unclear, are covered by the tests and offered on the site, but were not part of this run.
 
+After the run the site's demo shop, a separate throwaway key, opened S2 Harbour Lane Goods on the same register with a
+30 GEN bond and the three demo products (P4 kettle, P5 earbuds, P6 dry bag), accepting the same pinned competitor pages.
+
 ## Licence
 
 MIT. See `LICENSE`.

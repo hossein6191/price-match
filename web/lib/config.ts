@@ -3,7 +3,7 @@
 // DEMO_CONTRACT is the deployed copy the site reads when NEXT_PUBLIC_CONTRACT is unset. It is filled
 // in once the contract is deployed; while both are empty every page says the contract is not
 // deployed yet, and the whole site still works with NEXT_PUBLIC_MOCK=1.
-export const DEMO_CONTRACT: string = "";
+export const DEMO_CONTRACT: string = "0x8F861A0e6c1A18936df901828aAD5C9b50c9C073";
 
 export const SITE_NAME = "Price Match";
 export const SITE_TAGLINE = "Found it cheaper? The network checks.";
