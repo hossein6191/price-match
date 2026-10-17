@@ -105,7 +105,8 @@ CALLS = []                    # every prompt any node sent
 FETCHED = []                  # every address any node fetched
 LAST = {}
 
-# The demonstration: one shop, three products, three fictional competitors. Change one thing per test.
+# The demonstration: one shop, three fictional competitors, nine products with five pages each. Most tests use the
+# first three products (PRODUCTS); the page tests use all nine. Change one thing per test.
 SHOP_NAME = "Harbour Lane Goods"
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
 BASE = "https://raw.githubusercontent.com/demo-owner/price-match/" + COMMIT + "/competitors/"
@@ -123,6 +124,24 @@ BAG = ("Tidewell 20 L dry bag, orange",
        "Tidewell roll-top dry bag. Brand: Tidewell. Model: DB-20. Capacity: 20 litres. Colour: orange. Condition: "
        "new, with the original tags.", 12 * GEN // 10)
 PRODUCTS = [KETTLE, EARBUDS, BAG]
+LAMP = ("Brightloom L2 desk lamp, white",
+        "Brightloom L2 LED desk lamp. Brand: Brightloom. Model: L2-WH. Size: 40 cm arm. Colour: white. Condition: new, "
+        "sealed in the original box.", 15 * GEN // 10)
+DAYPACK = ("Kestrel 28 L daypack, grey",
+           "Kestrel 28 L daypack. Brand: Kestrel. Model: KD-28. Capacity: 28 litres. Colour: grey. Condition: new, with "
+           "the original tags.", 24 * GEN // 10)
+GRINDER = ("Millhaven C1 burr coffee grinder, black",
+           "Millhaven C1 electric burr coffee grinder. Brand: Millhaven. Model: C1-BK. Capacity: 250 g bean hopper. "
+           "Colour: black. Condition: new, sealed in the original box.", 28 * GEN // 10)
+BOTTLE = ("Pinecrest 1 L insulated bottle, green",
+          "Pinecrest insulated steel bottle. Brand: Pinecrest. Model: IB-1000. Capacity: 1 litre. Colour: green. "
+          "Condition: new, with the original tags.", 9 * GEN // 10)
+POWER_BANK = ("Voltleaf P10 power bank, 10,000 mAh, white",
+              "Voltleaf P10 portable power bank. Brand: Voltleaf. Model: P10-WH. Capacity: 10,000 mAh. Colour: white. "
+              "Includes a USB-C cable. Condition: new, sealed in the original box.", 16 * GEN // 10)
+THROW = ("Larkfield wool throw, 130 x 170 cm, navy",
+         "Larkfield woven wool throw. Brand: Larkfield. Model: WT-130. Size: 130 x 170 cm. Colour: navy. Condition: new, "
+         "with the original tags.", 22 * GEN // 10)
 
 
 def url(path):
@@ -151,6 +170,36 @@ DEMO_PAGES = {   # every page, the product it is about, and what a claim with it
     "corner-hardware/arcwave-x200-earbuds.html": (EARBUDS, "not_cheaper", "3.80"),
     "corner-hardware/tidewell-dry-bag-20l.html": (BAG, "matched", "0.95"),
     "corner-hardware/tidewell-dry-bag-20l-refurbished.html": (BAG, "different", ""),
+    "northgate/brightloom-l2-desk-lamp.html": (LAMP, "matched", "1.35"),
+    "bright-basket/brightloom-l1-desk-lamp.html": (LAMP, "different", ""),
+    "northgate/brightloom-l2-desk-lamp-refurbished.html": (LAMP, "different", ""),
+    "corner-hardware/brightloom-l2-desk-lamp.html": (LAMP, "not_cheaper", "1.75"),
+    "bright-basket/brightloom-l2-desk-lamp.html": (LAMP, "unclear", ""),
+    "bright-basket/kestrel-daypack-28l.html": (DAYPACK, "matched", "2.15"),
+    "corner-hardware/kestrel-daypack-18l.html": (DAYPACK, "different", ""),
+    "bright-basket/kestrel-daypack-28l-refurbished.html": (DAYPACK, "different", ""),
+    "northgate/kestrel-daypack-28l.html": (DAYPACK, "not_cheaper", "2.90"),
+    "corner-hardware/kestrel-daypack-28l.html": (DAYPACK, "unclear", ""),
+    "corner-hardware/millhaven-c1-grinder.html": (GRINDER, "matched", "2.45"),
+    "northgate/millhaven-c2-grinder.html": (GRINDER, "different", ""),
+    "corner-hardware/millhaven-c1-grinder-refurbished.html": (GRINDER, "different", ""),
+    "bright-basket/millhaven-c1-grinder.html": (GRINDER, "not_cheaper", "3.20"),
+    "northgate/millhaven-c1-grinder.html": (GRINDER, "unclear", ""),
+    "bright-basket/pinecrest-bottle-1l.html": (BOTTLE, "matched", "0.80"),
+    "northgate/pinecrest-bottle-500ml.html": (BOTTLE, "different", ""),
+    "corner-hardware/pinecrest-bottle-1l-refurbished.html": (BOTTLE, "different", ""),
+    "corner-hardware/pinecrest-bottle-1l.html": (BOTTLE, "not_cheaper", "1.15"),
+    "northgate/pinecrest-bottle-1l.html": (BOTTLE, "unclear", ""),
+    "northgate/voltleaf-p10-power-bank.html": (POWER_BANK, "matched", "1.45"),
+    "bright-basket/voltleaf-p20-power-bank.html": (POWER_BANK, "different", ""),
+    "northgate/voltleaf-p10-power-bank-refurbished.html": (POWER_BANK, "different", ""),
+    "bright-basket/voltleaf-p10-power-bank.html": (POWER_BANK, "not_cheaper", "1.90"),
+    "corner-hardware/voltleaf-p10-power-bank.html": (POWER_BANK, "unclear", ""),
+    "corner-hardware/larkfield-wool-throw-130.html": (THROW, "matched", "1.95"),
+    "corner-hardware/larkfield-wool-throw-150.html": (THROW, "different", ""),
+    "bright-basket/larkfield-wool-throw-130-refurbished.html": (THROW, "different", ""),
+    "northgate/larkfield-wool-throw-130.html": (THROW, "not_cheaper", "2.60"),
+    "bright-basket/larkfield-wool-throw-130.html": (THROW, "unclear", ""),
 }
 
 QUESTION_SAME_TEXT = ("Is the item offered on this page the same product as the specification: same brand, model, "
@@ -1479,7 +1528,8 @@ class TestMoney:
         worlds = [[honest()] * 4, [honest()] * 4, [World(brain=model(always="yes"))] * 4,
                   [World(brain=model(garbage=True))] * 4, [honest(), moved, moved, honest()],
                   [World(down=True)] + [honest()] * 3, [World(brain=model(price="0.10"))] + [honest()] * 3]
-        pages = list(WEB) + [BASE + "unlisted/a.html", PREFIXES[0] + "missing.html", "http://x.example/a"]
+        pages = [a for a in WEB if DEMO_PAGES[a[len(BASE):]][0] in PRODUCTS]     # the pages of the products it lists
+        pages += [BASE + "unlisted/a.html", PREFIXES[0] + "missing.html", "http://x.example/a"]
         seen = set()
         for trial in range(40):
             c = _register()

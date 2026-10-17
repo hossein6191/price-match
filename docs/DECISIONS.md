@@ -87,7 +87,7 @@ disagrees, and the claim does not settle.
 question tells the model not to choose between a shelf price and a card,
 trade or till price. That is a rule a model may still apply differently, since
 one model can read the shelf price as the current one and the other as a
-members' offer, so the demonstration does not rest on it: its three `unclear`
+members' offer, so the demonstration does not rest on it: its nine `unclear`
 pages show no number beside the price at all, which every reader reads the
 same way.
 
@@ -160,7 +160,7 @@ journeys (the contract holds every bond plus every credit, reservations never
 exceed a bond, each order in exactly one state); a failed fetch, a failed
 model call, a short page and a long page each storing nothing; validators
 whose pages differ disagreeing; the two orders disagreeing landing as
-`unclear`; every one of the fifteen demo pages coming to its outcome with a
+`unclear`; every one of the forty-five demo pages coming to its outcome with a
 scripted reader; the price normalisation table; static rules over the parsed
 source (sender gates, payables, loops, the prompt boundary, the closure, the
 comparison, no float, transfers); and 222 mutants, none surviving.

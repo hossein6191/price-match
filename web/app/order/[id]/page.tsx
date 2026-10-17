@@ -2,7 +2,7 @@
 
 // One order. Its price tag, its guarantee counting down, and for its buyer the claim: claim-fee
 // credit first if there is none, then a competitor page picked from one-click chips (the demo's
-// fifteen pages, each linked to the copy this site serves) or typed below one of the shop's prefixes,
+// forty-five pages, each linked to the copy this site serves) or typed below one of the shop's prefixes,
 // and the Claim button. While the validators open the page, one waiting panel says what each of them
 // is doing, how long it takes, that nothing is needed and that the page can be closed, and where the
 // money is. Each judged claim prints as a till receipt, and a match gets its red sticker. After the

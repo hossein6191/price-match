@@ -1,6 +1,6 @@
 "use client";
 
-// The demo shop's shelf: Harbour Lane Goods, its three products with their prices and guarantee
+// The demo shop's shelf: Harbour Lane Goods, its nine products with their prices and guarantee
 // windows, and Buy. The shop's id comes from the site's server (it finds the shop its demo key
 // opened), or from the site's settings when the server has no key.
 

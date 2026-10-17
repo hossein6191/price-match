@@ -179,7 +179,7 @@ checks both after every step of forty seeded random journeys.
 
 ## The demonstration
 
-One shop, Harbour Lane Goods, sells three products. Every shop and brand here
+One shop, Harbour Lane Goods, sells nine products. Every shop and brand here
 is fictional.
 
 | product | spec | our price |
@@ -187,12 +187,18 @@ is fictional.
 | Lumio K3 kettle | Brand: Lumio. Model: K3-170. Capacity: 1.7 litres. Finish: brushed stainless steel. Condition: new, sealed in the original box. | 2.00 GEN |
 | Arcwave X200 earbuds | Brand: Arcwave. Model: X200-BK. Colour: black. Includes the charging case. Condition: new, sealed in the original box. | 3.50 GEN |
 | Tidewell 20 L dry bag | Brand: Tidewell. Model: DB-20. Capacity: 20 litres. Colour: orange. Condition: new, with the original tags. | 1.20 GEN |
+| Brightloom L2 desk lamp | Brand: Brightloom. Model: L2-WH. Size: 40 cm arm. Colour: white. Condition: new, sealed in the original box. | 1.50 GEN |
+| Kestrel 28 L daypack | Brand: Kestrel. Model: KD-28. Capacity: 28 litres. Colour: grey. Condition: new, with the original tags. | 2.40 GEN |
+| Millhaven C1 burr coffee grinder | Brand: Millhaven. Model: C1-BK. Capacity: 250 g bean hopper. Colour: black. Condition: new, sealed in the original box. | 2.80 GEN |
+| Pinecrest 1 L insulated bottle | Brand: Pinecrest. Model: IB-1000. Capacity: 1 litre. Colour: green. Condition: new, with the original tags. | 0.90 GEN |
+| Voltleaf P10 power bank | Brand: Voltleaf. Model: P10-WH. Capacity: 10,000 mAh. Colour: white. Includes a USB-C cable. Condition: new, sealed in the original box. | 1.60 GEN |
+| Larkfield wool throw | Brand: Larkfield. Model: WT-130. Size: 130 x 170 cm. Colour: navy. Condition: new, with the original tags. | 2.20 GEN |
 
-`competitors/` holds fifteen static pages from three fictional competitors
+`competitors/` holds forty-five static pages from three fictional competitors
 (Northgate Electronics, Bright Basket and Corner Hardware): for each product,
 one page per outcome. Each page names the product in full, its model, colour
 or finish and condition, says `Price: N GEN` in plain text, and carries some
-ordinary shop text. The three `unclear` pages show the same product with no
+ordinary shop text. The nine `unclear` pages show the same product with no
 number beside the price at all ("ask at the counter", "shown once the item is
 in your basket", "on request"), so every reader finds no price. The on-chain run reads them from `raw.githubusercontent.com` pinned to
 one commit, so every validator fetches the same bytes.
@@ -214,8 +220,38 @@ one commit, so every validator fetches the same bytes.
 | `corner-hardware/tidewell-dry-bag-20l-refurbished.html` | dry bag | the same bag, refurbished | different |
 | `northgate/tidewell-dry-bag-20l.html` | dry bag | the same bag, 1.45 GEN | not cheaper |
 | `bright-basket/tidewell-dry-bag-20l.html` | dry bag | the same bag, no price shown | unclear |
+| `northgate/brightloom-l2-desk-lamp.html` | desk lamp | the same lamp, 1.35 GEN | matched, 0.15 GEN back |
+| `bright-basket/brightloom-l1-desk-lamp.html` | desk lamp | a Brightloom L1, 30 cm arm | different |
+| `northgate/brightloom-l2-desk-lamp-refurbished.html` | desk lamp | the same lamp, refurbished | different |
+| `corner-hardware/brightloom-l2-desk-lamp.html` | desk lamp | the same lamp, 1.75 GEN | not cheaper |
+| `bright-basket/brightloom-l2-desk-lamp.html` | desk lamp | the same lamp, no price shown | unclear |
+| `bright-basket/kestrel-daypack-28l.html` | daypack | the same daypack, 2.15 GEN | matched, 0.25 GEN back |
+| `corner-hardware/kestrel-daypack-18l.html` | daypack | a Kestrel KD-18, 18 L | different |
+| `bright-basket/kestrel-daypack-28l-refurbished.html` | daypack | the same daypack, refurbished | different |
+| `northgate/kestrel-daypack-28l.html` | daypack | the same daypack, 2.90 GEN | not cheaper |
+| `corner-hardware/kestrel-daypack-28l.html` | daypack | the same daypack, no price shown | unclear |
+| `corner-hardware/millhaven-c1-grinder.html` | coffee grinder | the same grinder, 2.45 GEN | matched, 0.35 GEN back |
+| `northgate/millhaven-c2-grinder.html` | coffee grinder | a Millhaven C2, 350 g hopper | different |
+| `corner-hardware/millhaven-c1-grinder-refurbished.html` | coffee grinder | the same grinder, refurbished | different |
+| `bright-basket/millhaven-c1-grinder.html` | coffee grinder | the same grinder, 3.20 GEN | not cheaper |
+| `northgate/millhaven-c1-grinder.html` | coffee grinder | the same grinder, no price shown | unclear |
+| `bright-basket/pinecrest-bottle-1l.html` | bottle | the same bottle, 0.80 GEN | matched, 0.10 GEN back |
+| `northgate/pinecrest-bottle-500ml.html` | bottle | a Pinecrest IB-500, 500 ml | different |
+| `corner-hardware/pinecrest-bottle-1l-refurbished.html` | bottle | the same bottle, refurbished | different |
+| `corner-hardware/pinecrest-bottle-1l.html` | bottle | the same bottle, 1.15 GEN | not cheaper |
+| `northgate/pinecrest-bottle-1l.html` | bottle | the same bottle, no price shown | unclear |
+| `northgate/voltleaf-p10-power-bank.html` | power bank | the same power bank, 1.45 GEN | matched, 0.15 GEN back |
+| `bright-basket/voltleaf-p20-power-bank.html` | power bank | a Voltleaf P20, 20,000 mAh | different |
+| `northgate/voltleaf-p10-power-bank-refurbished.html` | power bank | the same power bank, refurbished | different |
+| `bright-basket/voltleaf-p10-power-bank.html` | power bank | the same power bank, 1.90 GEN | not cheaper |
+| `corner-hardware/voltleaf-p10-power-bank.html` | power bank | the same power bank, no price shown | unclear |
+| `corner-hardware/larkfield-wool-throw-130.html` | wool throw | the same throw, 1.95 GEN | matched, 0.25 GEN back |
+| `corner-hardware/larkfield-wool-throw-150.html` | wool throw | a Larkfield WT-150, 150 x 200 cm | different |
+| `bright-basket/larkfield-wool-throw-130-refurbished.html` | wool throw | the same throw, refurbished | different |
+| `northgate/larkfield-wool-throw-130.html` | wool throw | the same throw, 2.60 GEN | not cheaper |
+| `bright-basket/larkfield-wool-throw-130.html` | wool throw | the same throw, no price shown | unclear |
 
-The offline suite claims with every one of the fifteen pages and checks the
+The offline suites claim with every one of the 45 pages and check the
 outcome and the money.
 
 ## The limits, stated plainly
@@ -266,7 +302,7 @@ outcome and the money.
 ```
 contracts/price_match.py     the contract
 web/                         the site (Next.js), its tests and tools/open-demo-shop.mjs
-competitors/                 the fifteen demo competitor pages, their index and their stylesheet
+competitors/                 the 45 demo competitor pages, their index and their stylesheet
 tests/test_pure.py           the offline suite, including the consensus round with a world per node
 tests/MUTATIONS.md           every defence removed in turn, and the test that caught it
 tests/on_chain/smoke.mjs     a throwaway-account run against Studio
@@ -324,7 +360,7 @@ our price, the refund) with a red sticker on a match.
 | page | what it does |
 |---|---|
 | `/` | the promise in one minute, a receipt printing the demo's kettle match, how the money moves |
-| `/shop` | the demo shop's shelf: three products with their prices and guarantee windows, and Buy |
+| `/shop` | the demo shop's shelf: nine products with their prices and guarantee windows, and Buy |
 | `/order/[id]` | the order, its guarantee counting down, the claim (claim-fee credit, a competitor page picked from one-click chips, Claim), the waiting panel while the validators read the page, and the receipts |
 | `/shops`, `/shop/[id]` | every shop, and any shop's products and bond |
 | `/merchant` | open a shop with suggested names and the demo competitors' prefixes, fund and withdraw the bond, list products, release ended orders |
@@ -333,7 +369,7 @@ our price, the refund) with a red sticker on a match.
 | `/how` | the four askings, why the live web makes this a GenLayer job, the money table, the limits, and `rules()` read live |
 
 **The demo shop.** One visitor wallet can try everything. A throwaway Studio
-key opens Harbour Lane Goods once, with a bond and the three demonstration
+key opens Harbour Lane Goods with a 40 GEN bond and the nine demonstration
 products, accepting the three competitor prefixes on
 `raw.githubusercontent.com` pinned to the pushed commit:
 
@@ -341,10 +377,21 @@ products, accepting the three competitor prefixes on
 cd web
 REGISTER=<contract> DEMO_SHOP_KEY=<throwaway key> COMMIT=<40-character sha> node tools/open-demo-shop.mjs
 DRY=1 REGISTER=<contract> COMMIT=<sha> node tools/open-demo-shop.mjs      # print the calls, send nothing
+DRY=1 OWNER=<the key's address> REGISTER=<contract> COMMIT=<sha> node tools/open-demo-shop.mjs   # and read its shops
 ```
 
+A shop's prefixes are fixed for good, so the script keeps the key's newest
+demo shop only when its prefixes are exactly the ones built from `COMMIT`, and
+then adds only the bond and the products it lacks. Otherwise it opens a new
+shop with the new prefixes under the next name of the family (Harbour Lane
+Goods 2, then 3: the contract refuses a second shop of the same name from one
+address), and the earlier shop stays open for the orders already in it. The
+site's server shows the key's newest demo shop that lists products. The first
+demo shop, S2, carried the three products of the on-chain run; the demo shop
+was reopened at a new commit with all nine.
+
 The visitor buys with their own wallet, adds 0.01 GEN of claim-fee credit,
-picks one of the fifteen competitor pages from chips such as "Northgate: same
+picks one of the 45 competitor pages from chips such as "Northgate: same
 kettle, 1.80 GEN" or "Corner Hardware: refurbished", and claims. The chips build
 each address from the prefixes the shop accepted on chain, and every chip links
 to the copy of that page the site serves under `/competitors/`, so a visitor
@@ -380,7 +427,7 @@ network", never "no data".
 `web/lib/chain-mock.ts`, an in-memory copy of the contract that follows it on
 everything deterministic: the same checks in the same order, the same refusal
 sentences, the same JSON views. It cannot fetch a page or ask a model, so its
-readings follow what the fifteen demo pages state, and any other address
+readings follow what the 45 demo pages state, and any other address
 cannot be read and stores nothing. A bar on every page says so, switches
 between demo accounts, gives test GEN and moves the clock on.
 
@@ -390,12 +437,12 @@ npm ci
 npm run typecheck && npm run lint && npm run test:site && npm run build
 ```
 
-`npm run test:site` runs 44 node tests with no browser and no network.
+`npm run test:site` runs 45 node tests with no browser and no network.
 They check every call the site can send and every view it reads against
 `contracts/price_match.py`; compare the site's copies of the contract's rules
 (addresses, prefixes, money words, the price reader, the combine tables) and
 the in-memory `rules()` with the contract itself, through a stub of the
-runtime, case by case; buy and claim with each of the fifteen demo pages and
+runtime, case by case; buy and claim with each of the 45 demo pages and
 check the outcome and the money; keep every atto accounted for over four
 hundred seeded random steps; keep every suggestion inside the contract's
 limits; cover the waiting copy for every state and role; and scan every file

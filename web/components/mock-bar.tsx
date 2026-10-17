@@ -19,7 +19,7 @@ export function MockBar() {
     <div className="border-b-2 border-dashed border-ink/40 bg-tag-wash">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-2 px-4 py-2 text-xs xl:flex-row xl:items-center xl:justify-between">
         <p>
-          <strong className="font-bold">Demo build.</strong> An in-memory copy of the contract. No page is fetched here: the readings follow what the fifteen demo pages state,
+          <strong className="font-bold">Demo build.</strong> An in-memory copy of the contract. No page is fetched here: the readings follow what the forty-five demo pages state,
           where on chain every validator fetches the page itself. A reload starts again.
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">

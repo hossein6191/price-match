@@ -2,7 +2,7 @@
 //
 //   node --test tests/unit/mock-flow.test.mjs
 //
-// A visitor buys from the demo shop and claims with each of the fifteen demo competitor pages: the
+// A visitor buys from the demo shop and claims with each of the forty-five demo competitor pages: the
 // same product for less is matched and the difference comes back from the bond in the same
 // transaction; another model or a refurbished unit is a different product and the claim fee goes to
 // the shop; a dearer page is not cheaper and nothing moves; a page with no price is unclear and
@@ -59,12 +59,15 @@ async function send(as, call) {
 const refusal = (s) => (s.exec === "ERROR" ? s.message : s.result?.ok === false ? s.result.reason : "");
 const productId = (key) => "P" + (DEMO_PRODUCTS.findIndex((p) => p.key === key) + 1);
 
-test("each of the fifteen demo pages, claimed on its own product: the outcome the page states, and the money it moves", async () => {
-  // Fifteen purchases need more than the visitor's starting GEN; the faucet's GEN joins the world before it is counted.
-  for (let i = 0; i < 4; i++) await mock.faucet(VISITOR);
+test("each of the forty-five demo pages, claimed on its own product: the outcome the page states, and the money it moves", async () => {
+  assert.equal(DEMO_PRODUCTS.length, 9, "nine demo products");
+  assert.equal(DEMO_PAGES.length, 45, "five pages for each");
+  // Forty-five purchases need more than the visitor's starting GEN; the faucet's GEN joins the world before it is counted.
+  for (let i = 0; i < 9; i++) await mock.faucet(VISITOR);
   const total = await world();
   await conserved(total, "seeded");
-  const dep = await send(VISITOR, calls.deposit(GEN / 10n));
+  // Eighteen of the pages are another product, and each of those claims gives its fee to the shop.
+  const dep = await send(VISITOR, calls.deposit(GEN / 4n));
   assert.equal(dep.result.ok, true);
   for (const page of DEMO_PAGES) {
     const product = DEMO_PRODUCTS.find((p) => p.key === page.product);
@@ -228,7 +231,7 @@ test("a purchase the bond does not cover is sent back, and the demo shop tops up
   assert.equal((await view("product", ["P1"])).covered, true, "covered again");
   assert.equal((await send(VISITOR, calls.buy("P1", price))).result.ok, true);
   assert.deepEqual(await mock.demoRestock("P1"), { ok: true, hash: "", already: true }, "a covered product needs no top-up");
-  const other = await mock.demoRestock("P4");
+  const other = await mock.demoRestock("P" + (DEMO_PRODUCTS.length + 1));
   assert.equal(other.ok, false, "the demo shop tops up only its own shop");
   // The demo restock may draw on the faucet, which joins the world's total.
   assert.ok((await world()) >= total0);

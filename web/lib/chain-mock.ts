@@ -5,7 +5,7 @@
 // the bond and its reservations, where every atto goes, the counters, and every view answered in the
 // contract's own JSON shape, so the mappers in lib/chain.ts run on the same rows in both modes. The
 // one thing it cannot do is fetch a page and ask a model: the reading of a claimed page is SCRIPTED
-// here from what the fifteen demo pages state (lib/demo-shop.ts), any other address cannot be fetched
+// here from what the forty-five demo pages state (lib/demo-shop.ts), any other address cannot be fetched
 // and stores nothing, and the demo bar says so on every page.
 //
 // The visitor acts as one of a few demo accounts. The demo shop runs Harbour Lane Goods and tops up
@@ -117,7 +117,7 @@ export function setMockPersona(address: string): void {
 const balances = new Map<string, bigint>([
   [VISITOR, 25n * GEN],
   [MY_SHOP, 15n * GEN],
-  [DEMO_SHOP, 40n * GEN],
+  [DEMO_SHOP, 60n * GEN],
   [EARLIER_BUYER, 30n * GEN],
   [PASSER_BY, 3n * GEN],
 ]);
@@ -877,17 +877,18 @@ function seed(): void {
   const MIN = 60;
   const HOUR = 3600;
   const DAY = 86400;
-  // S1, Harbour Lane Goods: the demo shop, opened three days ago with its bond and its three products.
+  // S1, Harbour Lane Goods: the demo shop, opened three days ago with its bond and its nine products (P1 to P9).
   at(DEMO_SHOP, now - 3 * DAY, "open_shop", [DEMO_SHOP_NAME, JSON.stringify(MOCK_PREFIXES)]);
   at(DEMO_SHOP, now - 3 * DAY + MIN, "fund", ["S1"], DEMO_BOND);
   for (const p of DEMO_PRODUCTS) at(DEMO_SHOP, now - 3 * DAY + 2 * MIN, "list_product", ["S1", p.title, p.spec, p.priceAtto, p.window]);
-  // S2, the "You, a shop owner" persona's own shop, matching the same three demo competitors.
+  // S2, the "You, a shop owner" persona's own shop, matching the same three demo competitors: P10 and P11.
   at(MY_SHOP, now - 5 * DAY, "open_shop", ["Quayside Kitchen Supply", JSON.stringify(MOCK_PREFIXES)]);
   at(MY_SHOP, now - 5 * DAY + MIN, "fund", ["S2"], 6n * GEN);
   at(MY_SHOP, now - 5 * DAY + 2 * MIN, "list_product", ["S2", DEMO_PRODUCTS[0].title, DEMO_PRODUCTS[0].spec, ((GEN * 21n) / 10n).toString(), 2 * HOUR]);
   at(MY_SHOP, now - 5 * DAY + 3 * MIN, "list_product", ["S2", DEMO_PRODUCTS[2].title, DEMO_PRODUCTS[2].spec, ((GEN * 11n) / 10n).toString(), DAY]);
   const E = EARLIER_BUYER;
   const [kettle, earbuds, bag] = ["P1", "P2", "P3"];
+  const [quaysideKettle, quaysideBag] = ["P" + (DEMO_PRODUCTS.length + 1), "P" + (DEMO_PRODUCTS.length + 2)];
   at(E, now - 2 * DAY, "deposit", [], GEN / 20n);
   // O1, the kettle: Northgate's page at 1.80 GEN, matched; 0.20 GEN came back from the bond.
   let t = now - 2 * DAY + 5 * MIN;
@@ -904,11 +905,11 @@ function seed(): void {
   at(E, t + 3 * MIN, "claim", ["O3", mockPage("northgate", "tidewell-dry-bag-20l.html")]);
   at(E, t + 9 * MIN, "claim", ["O3", mockPage("bright-basket", "tidewell-dry-bag-20l.html")]);
   // O4: Quayside's kettle, bought an hour ago and still inside its two-hour window.
-  at(E, now - HOUR, "buy", ["P4"], (GEN * 21n) / 10n);
+  at(E, now - HOUR, "buy", [quaysideKettle], (GEN * 21n) / 10n);
   // O5: the earlier buyer's earbuds from the demo shop, bought ten minutes ago; no claim yet.
   at(E, now - 10 * MIN, "buy", [earbuds], BigInt(DEMO_PRODUCTS[1].priceAtto));
   // O6: Quayside's dry bag, bought two days ago; its one-day window is over and nobody has released it.
-  at(PASSER_BY, now - 2 * DAY, "buy", ["P5"], (GEN * 11n) / 10n);
+  at(PASSER_BY, now - 2 * DAY, "buy", [quaysideBag], (GEN * 11n) / 10n);
 }
 
 /** Test hook: the contract's held total (every bond plus every credit) and its own balance, which must be equal. */

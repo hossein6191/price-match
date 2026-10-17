@@ -66,7 +66,7 @@ function Mine({ address }: { address: string }) {
           <Placeholder lines={5} />
         ) : orders.data.rows.length === 0 ? (
           <div className="flex flex-col items-start gap-3">
-            <p className="text-ink-2">No orders yet. The demo shop sells three things, each with a lowest-price guarantee.</p>
+            <p className="text-ink-2">No orders yet. The demo shop sells nine things, each with a lowest-price guarantee.</p>
             <ShelfLink href="/shop" variant="tag" icon={<IconArrowRight />}>
               Go to the demo shop
             </ShelfLink>

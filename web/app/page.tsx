@@ -124,7 +124,7 @@ export default function Home() {
           Start in the demo shop
         </h2>
         <p className="mt-2 max-w-[66ch] text-[16px]">
-          Harbour Lane Goods sells a kettle, earbuds and a dry bag. Buy one, pick a competitor page from the chips (the same product for less, another model, a refurbished
+          Harbour Lane Goods sells nine things, from a kettle to a wool throw. Buy one, pick a competitor page from the chips (the same product for less, another model, a refurbished
           unit, a dearer page, a page with no price), and watch the validators read it.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
@@ -132,7 +132,7 @@ export default function Home() {
             Go to the shelf
           </ShelfLink>
           <ShelfLink href="/competitors/index.html" external>
-            See the fifteen competitor pages
+            See all {DEMO_PAGES.length} competitor pages
           </ShelfLink>
         </div>
       </section>

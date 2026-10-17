@@ -1,11 +1,11 @@
 // Every one-click suggestion is inside the contract's limits, so pressing a chip never fills a field
-// with something the contract would refuse; and the demo's fifteen competitor pages are what the
+// with something the contract would refuse; and the demo's forty-five competitor pages are what the
 // site says they are: the same files the validators read, each stating the model, condition and
 // price its chip promises, at an address under the demo shop's prefixes that the contract accepts.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import * as rules from "../../lib/rules.ts";
 import { DEMO_PAGES, DEMO_PRODUCTS, DEMO_SHOP_NAME, demoPrefixes, pageChips, repoOf } from "../../lib/demo-shop.ts";
@@ -61,7 +61,19 @@ test("the demo shop's prefixes are accepted, and every page chip is an address t
   assert.deepEqual(pageChips(DEMO_PRODUCTS[0].spec, ["https://other.example/pages/"]), [], "a shop with other prefixes gets no demo chips");
 });
 
-test("the fifteen demo pages are the files the validators read, and state what their chips say", () => {
+test("the forty-five demo pages are the files the validators read, and state what their chips say", () => {
+  assert.equal(DEMO_PRODUCTS.length, 9, "nine demo products");
+  assert.equal(DEMO_PAGES.length, 45, "five pages for each of them");
+  assert.equal(new Set(DEMO_PRODUCTS.map((p) => p.spec)).size, 9, "every spec is its own");
+  // Both trees carry exactly the demo pages, no more and no fewer, and the index links every one.
+  const index = readFileSync(new URL("../../../competitors/index.html", import.meta.url), "utf8");
+  for (const c of ["northgate", "bright-basket", "corner-hardware"]) {
+    const want = DEMO_PAGES.filter((p) => p.competitor === c).map((p) => p.file).sort();
+    assert.equal(new Set(want).size, want.length, `${c}: no file twice`);
+    for (const tree of ["../../../competitors/", "../../public/competitors/"])
+      assert.deepEqual(readdirSync(new URL(tree + c + "/", import.meta.url)).filter((f) => f.endsWith(".html") && !f.startsWith("._")).sort(), want, `${tree}${c}`);
+    for (const f of want) assert.ok(index.includes(`<a href="${c}/${f}">`), `index.html links ${c}/${f}`);
+  }
   for (const p of DEMO_PAGES) {
     const repoCopy = readFileSync(new URL(`../../../competitors/${p.competitor}/${p.file}`, import.meta.url), "utf8");
     const siteCopy = readFileSync(new URL(`../../public/competitors/${p.competitor}/${p.file}`, import.meta.url), "utf8");

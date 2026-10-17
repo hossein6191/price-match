@@ -10,8 +10,7 @@ import { getAddress, type Address } from "viem";
 import { balanceOf, contractAddress, isMock, readProduct, readShopsOf, studio } from "./chain";
 import { cleanKey, keyProblem } from "./demo-key";
 import { DEMO_LIMITS, createLimiter } from "./demo-limit";
-import { DEMO_SHOP_NAME, RESTOCK_AMOUNT, restockProblem } from "./demo-shop";
-import { idNumber } from "./rules";
+import { RESTOCK_AMOUNT, pickDemoShop, restockProblem } from "./demo-shop";
 import { rpc, sleep } from "./rpc";
 import type { DemoStatus } from "./types";
 
@@ -30,16 +29,16 @@ function demoAccount(): Account | null {
 export const NOT_OPEN = "the demo shop is not open on this contract yet (tools/open-demo-shop.mjs opens it)";
 export const NOT_READ = "could not read the demo shop from Studio; try again in a minute";
 
-// The demo shop's id is read once and kept for five minutes: it never changes for one contract.
+// The demo shop's id is read once and kept for five minutes: it changes only when tools/open-demo-shop.mjs
+// reopens the demo shop at a new commit, and then the site follows within five minutes.
 let found: { contract: string; owner: string; shop: string; at: number } | null = null;
 
-/** The newest shop this key opened under the demo name, or "" when it has none. */
+/** The newest shop this key opened under a demo name that lists products (lib/demo-shop.ts pickDemoShop), or "". */
 async function demoShopId(owner: string): Promise<string> {
   const contract = contractAddress().toLowerCase();
   if (found && found.contract === contract && found.owner === owner && Date.now() - found.at < 300_000) return found.shop;
   const rows = (await readShopsOf(owner, 0, 20, { fresh: true })).data.rows;
-  const mine = rows.filter((r) => r.name === DEMO_SHOP_NAME).sort((a, b) => idNumber(b.id) - idNumber(a.id));
-  const shop = mine[0]?.id ?? "";
+  const shop = pickDemoShop(rows);
   if (shop) found = { contract, owner, shop, at: Date.now() };
   return shop;
 }
