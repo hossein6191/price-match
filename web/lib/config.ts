@@ -6,7 +6,7 @@
 // deployed; while both are empty every page says the contract is not deployed yet, and the whole site
 // still works with NEXT_PUBLIC_MOCK=1. The version 1 register is not read any more: its claims settle
 // at once and it has no appeal, so the version 2 pages would misdescribe it.
-export const DEMO_CONTRACT: string = "";
+export const DEMO_CONTRACT: string = "0xf8f4117b92899233597AB299ad8079bfe8E098c0";
 
 /**
  * The commit of the public repository the demo competitor pages are pinned to: the demo shop's three

@@ -616,7 +616,46 @@ line.
 
 ## Evidence: contract version 2 (milestone v1)
 
-The on-chain run is recorded here once it has run.
+Run on 20 November 2026 on GenLayer Studio (chain 61999) by `tests/on_chain/smoke.mjs`, from generated accounts funded from the
+Studio faucet, none of them anybody's wallet: SHOP opens the shop and funds the bond, BUYER buys, claims and appeals, STRANGER tries every action it may not take. **42 passed, 1 failed**; transactions: 32 in 32 steps; sent a second time: none.
+The whole log is `tests/on_chain/smoke-run.log`. One run covers the stock verdict, the bonded appeal, price protection and release. The single failed check is a balance read taken before the refund of a refused purchase had landed: the 2.00 GEN did come back, which the closing checks show (the contract holds nothing, and every account ends where the money table says).
+
+- `price_match.py` deployed at [`0xf8f4117b92899233597AB299ad8079bfe8E098c0`](https://explorer-studio.genlayer.com/address/0xf8f4117b92899233597AB299ad8079bfe8E098c0)
+
+- the code deployed at 0xf8f4117b92899233597AB299ad8079bfe8E098c0 is byte for byte contracts/price_match.py: 98611 bytes, sha256 363afa97913213e3054c1b071203d0a079d975f2c06b56da2e10c293adbc1acb
+
+| step | by | transactions | votes |
+|---|---|---|---|
+| SHOP opens S1, Harbour Lane Goods, accepting pages below three competitor prefixes | SHOP | [0x835cfc07…](https://explorer-studio.genlayer.com/tx/0x835cfc075a435c3d244aec74d39989aa4f9c791372ec7425a5f1db17377c60d4), [0x180a030c…](https://explorer-studio.genlayer.com/tx/0x180a030c17f4120a8e69853c9c3a1d8cafd11ebdd6ec221cd085314a7a38d86e) | 3 agree, 0 disagree, 2 idle |
+| SHOP lists Lumio K3 kettle, 1.7 L, brushed steel at 2 GEN with a 30-minute guarantee window | SHOP | [0xf615d74f…](https://explorer-studio.genlayer.com/tx/0xf615d74f638f4be63fc9a271b2d69c5a68bfc17425c8b1fc8eae8f73b34eae0e) | 4 agree, 0 disagree, 1 idle |
+| SHOP lists Arcwave X200 wireless earbuds, black at 3.5 GEN with a 30-minute guarantee window | SHOP | [0xc7c750e2…](https://explorer-studio.genlayer.com/tx/0xc7c750e2a95a2ac192aa586fa216d3785ddd534bcc65aafde965ded80952dcca) | 4 agree, 0 disagree, 1 idle |
+| STRANGER may not list a product in S1 | STRANGER | [0x58382073…](https://explorer-studio.genlayer.com/tx/0x583820733a450dc76cc633b6b401eb23f32c59826b8f1cee8a2ebf36f768575c) | 5 agree, 0 disagree, 0 idle |
+| SHOP funds a 7 GEN guarantee bond | BUYER SHOP | [0x5cb6f355…](https://explorer-studio.genlayer.com/tx/0x5cb6f355ac269ab6bc0d488e8a0d8ec2ace01c10d43fba0a98d7c015ee3bf779), [0x1b0e2529…](https://explorer-studio.genlayer.com/tx/0x1b0e252967061bc8b884546bcd2972ce26d5dda46d708be033fe21449d59296c) | 3 agree, 0 disagree, 2 idle |
+| SHOP deposits 0.05 GEN of credit, enough for one appeal bond | SHOP | [0x0d3e32d3…](https://explorer-studio.genlayer.com/tx/0x0d3e32d3e71b8210dcecdf7700cda64305ac8b1dfc666ad78dbb446fea58cc80) | 3 agree, 0 disagree, 2 idle |
+| BUYER deposits 0.05 GEN of claim-fee credit | BUYER | [0x19cd4373…](https://explorer-studio.genlayer.com/tx/0x19cd437338df97299f81c7002181996f5b2f1a4ad23a0bb988fd3cfee05794ed) | 3 agree, 0 disagree, 2 idle |
+| BUYER buys Lumio K3 kettle, 1.7 L, brushed steel: the 2 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved | BUYER | [0x8e2c666e…](https://explorer-studio.genlayer.com/tx/0x8e2c666e7db3be03d038d9fb4d21f8ed037ccfbcf4e62abd3578148f3f92bc8e) | 3 agree, 0 disagree, 2 idle |
+| BUYER buys Arcwave X200 wireless earbuds, black: the 3.5 GEN reaches SHOP in the same transaction, and the same amount of bond is reserved | BUYER | [0xdf7fa28f…](https://explorer-studio.genlayer.com/tx/0xdf7fa28fef918185ed575c83dacf9d98fde5f2f02446086aa85c76ba97c2cfbd) | 3 agree, 0 disagree, 2 idle |
+| SHOP may not withdraw bond reserved for open orders: only 1.50 GEN of the 7 is free | SHOP | [0xe7f0d6a7…](https://explorer-studio.genlayer.com/tx/0xe7f0d6a73cafa7e8379df4fbd015f3fecc0f916243e3d607485d0e007a95ae5c) | 3 agree, 0 disagree, 2 idle |
+| STRANGER may not claim on BUYER's order O1 | STRANGER | [0xc28cb3a0…](https://explorer-studio.genlayer.com/tx/0xc28cb3a040ae7a1b651b92c2327744eaf97c2be09355ad32c7658d7e9a66a04b) | 3 agree, 0 disagree, 2 idle |
+| a page below no accepted prefix is refused before anything is fetched | BUYER | [0xd539c259…](https://explorer-studio.genlayer.com/tx/0xd539c2598a021a66ca7573dd8c93aaca9800e5049b819036541e57807f85b503) | 3 agree, 0 disagree, 2 idle |
+| the validators carry one value for the sold-out page in one consensus round | BUYER | [0x74af3fc3…](https://explorer-studio.genlayer.com/tx/0x74af3fc3b1eba8e6686e278695330a45ebd97090dc3edd1b05c162f3854c6f08) | 3 agree, 0 disagree, 2 idle |
+| SHOP may not appeal C1: the finding went against the buyer | SHOP | [0xe58f44f9…](https://explorer-studio.genlayer.com/tx/0xe58f44f9097309caaf6b5587c199de927137c929d11cfc9bde23ece83d3af55d) | 3 agree, 0 disagree, 2 idle |
+| BUYER waives its appeal: C1 settles as not_in_stock and the 0.01 GEN fee goes back to its credit | BUYER | [0x05832ec5…](https://explorer-studio.genlayer.com/tx/0x05832ec51d0eb97d04fbc52ecde28f69b9412f1ef0bccba012ff618a896c50e0) | 5 agree, 0 disagree, 0 idle |
+| the validators carry one value for the kettle page in one consensus round | BUYER | [0xdbe268d5…](https://explorer-studio.genlayer.com/tx/0xdbe268d5987b4c5c1d60dd111ed12fda48b85f0adf3500dee19bb1d4f0e87b23) | 3 agree, 0 disagree, 2 idle |
+| BUYER may not appeal C2: the finding went against the shop | BUYER | [0x3064c8d8…](https://explorer-studio.genlayer.com/tx/0x3064c8d8d9068b1d607951b56ef3a7140b9fcd3dd6438f18fd6d01de9bb5d661) | 4 agree, 0 disagree, 1 idle |
+| STRANGER may not settle C2 while the shop may still appeal | STRANGER | [0x4f02582f…](https://explorer-studio.genlayer.com/tx/0x4f02582ff2a655f39fe02eee6a98b75a419651ae035abf55fb0ab18d0a68902b) | 4 agree, 0 disagree, 1 idle |
+| the validators carry one second reading of the same page, with the shop's reason fenced as its argument | SHOP | [0xd6a25f07…](https://explorer-studio.genlayer.com/tx/0xd6a25f07e09df3e3651167f2227b4db05391eb2da4d75b8085b28941fec54064) | 3 agree, 0 disagree, 2 idle |
+| SHOP may not appeal C2 again: an appeal is never appealed | SHOP | [0x03ac0cb8…](https://explorer-studio.genlayer.com/tx/0x03ac0cb81fe7a57a24f3f013a0a078d72f350f51da4d60364b47bec1a2d25f89) | 3 agree, 0 disagree, 2 idle |
+| STRANGER may not reprice P2 | STRANGER | [0xee032992…](https://explorer-studio.genlayer.com/tx/0xee0329925cc8f3c3dc6cebc7231d43d1fa75d7ddc5886351fa14fe6c70404069) | 3 agree, 0 disagree, 2 idle |
+| SHOP reprices P2 from 3.50 to 3.00 GEN | SHOP | [0xaa6c9411…](https://explorer-studio.genlayer.com/tx/0xaa6c941163a485a2e1183468697ffbe68c948f2c4dfabc9bdd050d7fd33462c7) | 5 agree, 0 disagree, 0 idle |
+| SHOP raises P2 straight back to 3.50 GEN: the 3.00 GEN stays in its price history | SHOP | [0x795988df…](https://explorer-studio.genlayer.com/tx/0x795988df45f2b81c447b776d2ba0049db03a2246731d24efe3ddf53f4671b4d9) | 3 agree, 0 disagree, 2 idle |
+| STRANGER may not claim the drop on BUYER's order O2 | STRANGER | [0xd7c38bcf…](https://explorer-studio.genlayer.com/tx/0xd7c38bcff872c485e6483e0ed89fc7964b49b6705b5fa9bdb318b79c701fed36) | 3 agree, 0 disagree, 2 idle |
+| BUYER claims the drop after the price went back up: the lowest recorded price, 3.00 GEN, is owed, so 0.50 GEN comes from O2's own reservation in the same transaction, no model asked | BUYER | [0xc87c1f0d…](https://explorer-studio.genlayer.com/tx/0xc87c1f0d1c3cc776f23bcc5fa95120ed0bc7436e48bae8a51d6543e19aed43d6) | 5 agree, 0 disagree, 0 idle |
+| a second drop claim at the same price is refused: nothing left to claim | BUYER | [0x8ca0a47e…](https://explorer-studio.genlayer.com/tx/0x8ca0a47e756bd48c62197802e49e84cdd6ab5a40e14931462e3c4674336fd0d8) | 4 agree, 0 disagree, 1 idle |
+| STRANGER releases O2 after its window: its 3.00 GEN reservation goes back to the free bond, nothing leaves the contract | STRANGER | [0xa5c27d71…](https://explorer-studio.genlayer.com/tx/0xa5c27d711047b321157422e871488d5cadf8a89f0877bd43344866362381e079) | 4 agree, 0 disagree, 1 idle |
+| SHOP withdraws the whole remaining bond, 6.30 GEN | SHOP | [0x17f38ae9…](https://explorer-studio.genlayer.com/tx/0x17f38ae9b4f42bff35e66f68d0e49a3de52b20ef37e2a0cb73f2692115818d81) | 4 agree, 0 disagree, 1 idle |
+| BUYER withdraws its 0.10 GEN of credit: its own 0.05 GEN and the shop's forfeited bond | BUYER | [0xbc9939a6…](https://explorer-studio.genlayer.com/tx/0xbc9939a6cde819d8d239bf98ad1e529706b18f7663572b7c40e4333d677a4d60) | 3 agree, 0 disagree, 2 idle |
+| SHOP holds no credit any more: its appeal bond went to the buyer | SHOP | [0x2db73a74…](https://explorer-studio.genlayer.com/tx/0x2db73a74cbb432af245c3487a68b4fd786f092fb205115494db6a2df9ad0f371) | 4 agree, 0 disagree, 1 idle |
 
 ## Evidence
 
