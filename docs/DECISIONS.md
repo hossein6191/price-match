@@ -208,12 +208,28 @@ the reason goes to every node, so it sways all of them alike or none.
 Both orders and exact equality still apply.
 
 **Price protection is not a model question.** A shop's own price is on chain,
-so `claim_drop` is arithmetic: what the order stands at (`price - dropped`)
-minus the product's current price, paid from the order's own reservation, in
-O(1). The reservation then equals what the order stands at, so a competitor
-match afterwards is measured against the lower price, and a shop can never
-owe more than it reserved. A drop waits while a claim is pending, because the
-pending refund was measured against the price before the drop.
+so `claim_drop` is arithmetic. It pays what the order stands at
+(`price - dropped`) minus the lowest price in the product's history that was
+set at or after the purchase and before the window ended, from the order's own
+reservation. Measuring against the current price would let a shop drop its
+price for a minute, raise it back, and owe nothing. So every `reprice` is
+recorded with its time, in numbered slots outside the product row.
+
+**The history is bounded, and a full one ends repricing.** A product records
+at most `MAX_REPRICES` (16) changes, so reading the history is a loop bounded
+by a constant and every `claim_drop`, settlement and release stays O(1). We do
+not overwrite old slots, because an old low price may still be owed to an
+open order. Once the history is full, `reprice` is refused and the shop lists
+a new product for a new price.
+
+The reservation always equals what the order stands at, so a competitor match
+afterwards is measured against the lower price, and a shop can never owe more
+than it reserved. A drop owed is never lost to timing. A claim's settlement and
+a release both pay it first, so neither a stranger's `release` at the end of
+the window nor a match can cut it off. A drop waits while a claim is pending,
+because the pending refund was measured against the price before it. When
+that claim settles as a match after a drop, it pays down to the lower of the
+lowest price and the competitor's price, and never both differences.
 
 ## 6. Every party has a way out
 
@@ -231,7 +247,8 @@ pending refund was measured against the price before the drop.
 | a claim while another is pending | the buyer waives its appeal with `settle`, then claims |
 | an appeal with too little credit | `deposit()`, then appeal inside the window |
 | an early settlement by the wrong side | anyone settles once the appeal window has closed |
-| a price drop while a claim is pending | settle the claim, then `claim_drop` |
+| a price drop while a claim is pending | settle the claim, which pays the drop owed |
+| a seventeenth price change | list a new product |
 | a release while a claim is pending | `settle`, which anyone may once its window has closed, then `release` |
 
 Each is walked as a journey in `TestRoutesOut`.
@@ -254,7 +271,7 @@ outcome with a scripted reader; the price normalisation table; static rules
 over the parsed source (sender gates on all nine gated writes, payables, loops,
 the prompt boundary including the argument block, the closure, the
 comparison, no float, transfers, one exit per order and one settlement per
-claim); and 312 mutants, none surviving.
+claim); price protection over a bounded price history, including a drop raised back before the claim, prices outside the window, and drops paid by settlement and by release; and 330 mutants, none surviving.
 
 Not verified offline: how real models on Studio read the demo pages, the
 stock lines included, and how they take an appellant's reason. The scripted

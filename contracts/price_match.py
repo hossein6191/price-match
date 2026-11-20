@@ -89,6 +89,7 @@ MAX_PREFIX = 160                 # characters in one prefix
 MAX_PREFIXES_JSON = 1000         # characters of the JSON list that carries them
 MAX_URL = 200                    # characters in a claimed page address
 MAX_PRODUCTS = 20                # products per shop
+MAX_REPRICES = 16                # price changes one product may record; then the shop lists a new product
 MAX_CLAIMS = 2                   # judged claims per order
 APPEAL_WINDOW = 900              # seconds after a judgment in which the side it went against may appeal, once
 APPEAL_BOND = ATTO // 20         # 0.05 GEN of credit staked by an appeal
@@ -822,6 +823,8 @@ class PriceMatch(gl.Contract):
     index: TreeMap[str, str]                 # "<list>|<k>" -> the k-th id of that list
     counts: TreeMap[str, u32]                # "<list>" -> how many ids it holds
     credit: TreeMap[str, u256]               # lowercase address -> claim-fee credit
+    reprice_times: TreeMap[str, u64]         # "<product>|<k>" -> when its k-th price change was made
+    reprice_prices: TreeMap[str, u256]       # "<product>|<k>" -> the price it was changed to
     shop_count: u32
     product_count: u32
     order_count: u32
@@ -1297,7 +1300,14 @@ class PriceMatch(gl.Contract):
 
     @gl.public.write
     def reprice(self, product_id: str, price_atto: str) -> str:
-        """The owner changes a product's price. A lower price is owed to every open order bought above it."""
+        """The owner changes a product's price, and the change is recorded for good.
+
+        Every change goes into the product's price history, at most
+        MAX_REPRICES of them. Every open order is owed the lowest price recorded
+        after its purchase and before its window ended, so a price that went
+        down and came back up is still owed. Once the history is full the
+        product cannot be repriced; the shop lists a new product instead.
+        """
         if not isinstance(product_id, str):
             _fail("the product id is a string")
         product_id = product_id.strip()
@@ -1307,6 +1317,9 @@ class PriceMatch(gl.Contract):
         shop = self.shop_rows[str(product.shop_id)]
         if _low(gl.message.sender_address) != _low(shop.owner):
             _fail("only the owner of " + str(product.shop_id) + " may reprice " + product_id)
+        if int(product.n_reprices) >= MAX_REPRICES:
+            _fail(product_id + " has recorded " + str(MAX_REPRICES) + " price changes, the most one product may; "
+                  "list a new product for a new price")
         price = _number_arg(price_atto)
         if price < MIN_PRICE or price > MAX_PRICE:
             _fail("the price is a whole number of atto from " + str(MIN_PRICE) + " (0.1 GEN) to " + str(MAX_PRICE)
@@ -1315,19 +1328,25 @@ class PriceMatch(gl.Contract):
             _fail(product_id + " is already priced at " + str(price) + " atto")
         now = _clock()
         old = int(product.price)
+        k = int(product.n_reprices)
+        self.reprice_times[product_id + "|" + str(k)] = u64(now)
+        self.reprice_prices[product_id + "|" + str(k)] = u256(price)
         product.price = u256(price)
         product.repriced_at = u64(now)
-        product.n_reprices = u32(int(product.n_reprices) + 1)
+        product.n_reprices = u32(k + 1)
         self.n_reprices = u32(int(self.n_reprices) + 1)
         return json.dumps({"ok": True, "product": product_id, "was": str(old), "price": str(price),
-                           "repriced_at": now})
+                           "repriced_at": now, "reprices_left": MAX_REPRICES - k - 1})
 
     @gl.public.write
     def claim_drop(self, order_id: str) -> str:
-        """The buyer of an open order takes the difference when the shop's own price fell below what it paid.
+        """The buyer of an open order takes the difference down to the lowest price the shop set during its window.
 
-        No model runs: it is the shop's own price. Paid from the order's own
-        reservation, which then stands at the lower price. O(1).
+        No model runs: it is the shop's own price history. The lowest price
+        recorded after the purchase and before the window ended counts, even if
+        the price went back up since. Paid from the order's own reservation,
+        which then stands at that price, so a second claim pays only a further
+        drop. Taken while the order is open and no claim is pending.
         """
         if not isinstance(order_id, str):
             _fail("the order id is a string")
@@ -1340,30 +1359,14 @@ class PriceMatch(gl.Contract):
         if str(order.pending):
             _fail("claim " + str(order.pending) + " on " + order_id + " is pending; a price drop waits until it "
                   "settles")
-        now = _clock()
-        if now >= int(order.window_end):
-            _fail("the guarantee window of " + order_id + " has closed")
-        product = self.product_rows[str(order.product_id)]
         stands = int(order.price) - int(order.dropped)
-        current = int(product.price)
-        if current >= stands:
-            _fail(str(order.product_id) + " is priced at " + str(current) + " atto, not below the " + str(stands)
-                  + " this order stands at; there is no drop to claim")
-        drop = stands - current
-        shop = self.shop_rows[str(order.shop_id)]
-        order.dropped = u256(int(order.dropped) + drop)
-        order.reserved = u256(int(order.reserved) - drop)
-        order.n_drops = u32(int(order.n_drops) + 1)
-        shop.bond = u256(int(shop.bond) - drop)
-        shop.reserved = u256(int(shop.reserved) - drop)
-        shop.dropped = u256(int(shop.dropped) + drop)
-        self.bonds = u256(int(self.bonds) - drop)
-        self.reserved_total = u256(int(self.reserved_total) - drop)
-        self.dropped_total = u256(int(self.dropped_total) + drop)
-        self.n_drops = u32(int(self.n_drops) + 1)
-        _Payee(order.buyer).emit_transfer(value=u256(drop))
+        lowest = self._lowest_price(order)
+        if lowest >= stands:
+            _fail(str(order.product_id) + " was priced at no less than " + str(lowest) + " atto during the window "
+                  "of " + order_id + ", not below the " + str(stands) + " it stands at; there is no drop to claim")
+        drop = self._pay_drop(order, lowest)
         return json.dumps({"ok": True, "order": order_id, "product": str(order.product_id), "paid": str(drop),
-                           "stands_at": str(current), "reserved": str(int(order.reserved))})
+                           "stands_at": str(lowest), "reserved": str(int(order.reserved))})
 
     # ------------------------------------------------------------ by the clock
 
@@ -1371,10 +1374,11 @@ class PriceMatch(gl.Contract):
     def release(self, order_id: str) -> str:
         """The window ended: the order's reservation goes back to the shop's free bond.
 
-        Open on purpose: nothing leaves the contract, the reservation goes back
-        to the shop recorded on the order whoever calls, and only once the
-        window is over and no claim is pending, so a shop's bond never waits on
-        one particular account.
+        Open on purpose: the reservation goes back to the shop recorded on the
+        order whoever calls, and only once the window is over and no claim is
+        pending, so a shop's bond never waits on one particular account. The
+        one thing that leaves is a price drop still owed to the order's own
+        buyer, paid first, so a release can never cut a drop off.
         """
         if not isinstance(order_id, str):
             _fail("the order id is a string")
@@ -1389,11 +1393,13 @@ class PriceMatch(gl.Contract):
         if now < int(order.window_end):
             _fail("the guarantee window of " + order_id + " runs for another " + str(int(order.window_end) - now)
                   + " seconds; its price stays reserved until then")
+        drop = self._pay_drop(order, self._lowest_price(order))
         freed = int(order.reserved)
         self._end_order(order, END_WINDOW, now, 0)
         shop = self.shop_rows[str(order.shop_id)]
-        return json.dumps({"ok": True, "order": order_id, "status": O_RELEASED, "freed": str(freed),
-                           "shop": str(order.shop_id), "free": str(int(shop.bond) - int(shop.reserved))})
+        return json.dumps({"ok": True, "order": order_id, "status": O_RELEASED, "drop_paid": str(drop),
+                           "freed": str(freed), "shop": str(order.shop_id),
+                           "free": str(int(shop.bond) - int(shop.reserved))})
 
     # ------------------------------------------------------------------ views
 
@@ -1587,11 +1593,15 @@ class PriceMatch(gl.Contract):
                        "amount of the shop's bond is reserved for the order",
                 "deposit": "credit for claim fees and appeal bonds; withdraw() returns all of it",
                 "claim": "stakes 0.01 GEN of credit, held until the claim settles",
-                "settle": "matched pays the refund from the reservation and ends the order; different sends the fee "
-                          "to the shop; anything else returns the fee to the buyer's credit",
+                "settle": "any price drop owed is paid first; matched then pays what the order stands at minus "
+                          "their price and ends the order; different sends the fee to the shop; anything else returns "
+                          "the fee to the buyer's credit",
                 "appeal": "stakes 0.05 GEN of credit: kept when overturned, to the other side's credit when upheld",
-                "claim_drop": "the order's price minus the product's current price, from the order's reservation",
-                "release": "after the window, the order's reservation goes back to the shop's free bond",
+                "reprice": "nothing moves; the change is recorded in the product's price history",
+                "claim_drop": "what the order stands at minus the lowest price recorded during its window, from the "
+                              "order's reservation, even if the price has gone back up",
+                "release": "after the window, any price drop still owed goes to the buyer first, then the order's "
+                           "reservation goes back to the shop's free bond",
                 "refusal": "a refused payable call returns everything sent, in the same transaction",
                 "balance": "the contract holds exactly every shop's bond, every address's credit and every held "
                            "claim fee",
@@ -1601,7 +1611,7 @@ class PriceMatch(gl.Contract):
                 "fund": "the owner",
                 "withdraw_bond": "the owner, up to the free bond",
                 "list_product": "the owner, at most " + str(MAX_PRODUCTS) + " products per shop",
-                "reprice": "the owner",
+                "reprice": "the owner, at most " + str(MAX_REPRICES) + " times per product; then a new product",
                 "buy": "anyone but the owner, with exactly the price, while the free bond covers it",
                 "deposit": "anyone, for their own credit",
                 "withdraw": "anyone, their own credit",
@@ -1611,8 +1621,8 @@ class PriceMatch(gl.Contract):
                 "appeal": "the side the finding went against, once, inside the appeal window",
                 "settle": "the side that may appeal at any time, which waives it; anyone once the appeal window "
                           "has closed",
-                "claim_drop": "the buyer, inside the window, no claim pending, when the current price is below what "
-                              "the order stands at",
+                "claim_drop": "the buyer, while the order is open and no claim is pending, when a price recorded "
+                              "during its window is below what the order stands at",
                 "release": "anyone, after the window, while the order is open and no claim is pending",
             },
             "limits": {
@@ -1621,7 +1631,7 @@ class PriceMatch(gl.Contract):
                 "price_atto": [str(MIN_PRICE), str(MAX_PRICE)], "window_seconds": [MIN_WINDOW, MAX_WINDOW],
                 "prefixes": [1, MAX_PREFIXES], "prefix_chars": MAX_PREFIX, "url_chars": MAX_URL,
                 "products_per_shop": MAX_PRODUCTS, "claims_per_order": MAX_CLAIMS, "claim_fee": str(CLAIM_FEE),
-                "appeal_seconds": APPEAL_WINDOW, "appeal_bond": str(APPEAL_BOND),
+                "appeal_seconds": APPEAL_WINDOW, "appeal_bond": str(APPEAL_BOND), "reprices_per_product": MAX_REPRICES,
                 "page_chars": [MIN_PAGE, MAX_PAGE], "rows_per_page": PAGE,
                 "page": "the page must read the same, byte for byte, for every validator at the time of the claim; "
                         "a page that cannot be fetched, reads under " + str(MIN_PAGE) + " characters or over "
@@ -1706,6 +1716,10 @@ class PriceMatch(gl.Contract):
             "title": str(p.title), "spec": str(p.spec), "price": str(int(p.price)), "window": int(p.window),
             "listed_at": int(p.listed_at), "orders": int(p.n_orders), "free_bond": str(free),
             "covered": free >= int(p.price), "repriced_at": int(p.repriced_at), "reprices": int(p.n_reprices),
+            "reprices_left": MAX_REPRICES - int(p.n_reprices),
+            "history": [[int(self.reprice_times[product_id + "|" + str(k)]),
+                         str(int(self.reprice_prices[product_id + "|" + str(k)]))]
+                        for k in range(min(int(p.n_reprices), MAX_REPRICES))],
         }
 
     def _order_row(self, order_id: str, now: int) -> typing.Dict[str, typing.Any]:
@@ -1721,7 +1735,7 @@ class PriceMatch(gl.Contract):
             phase = "unknown"
         else:
             phase = "claim" if now < int(o.window_end) else "release"
-        due = stands - int(p.price) if phase == "claim" and int(p.price) < stands else 0
+        due = stands - self._lowest_price(o) if status == O_OPEN and not str(o.pending) else 0
         return {
             "order": order_id, "product": str(o.product_id), "shop": str(o.shop_id), "title": str(p.title),
             "buyer": _low(o.buyer), "price": str(int(o.price)), "stands_at": str(stands),
@@ -1788,6 +1802,41 @@ class PriceMatch(gl.Contract):
             self.refunded_total = u256(int(self.refunded_total) + refund)
             _Payee(order.buyer).emit_transfer(value=u256(refund))
 
+    def _lowest_price(self, order: Order) -> int:
+        """The lowest of what the order stands at and every price recorded during its window.
+
+        A recorded price counts when it was set at or after the purchase and
+        before the window ended. Reads at most MAX_REPRICES entries of the product's history. O(1).
+        """
+        product_id = str(order.product_id)
+        product = self.product_rows[product_id]
+        lowest = int(order.price) - int(order.dropped)
+        for k in range(min(int(product.n_reprices), MAX_REPRICES)):
+            key = product_id + "|" + str(k)
+            at = int(self.reprice_times[key])
+            if int(order.bought_at) <= at < int(order.window_end):
+                lowest = min(lowest, int(self.reprice_prices[key]))
+        return lowest
+
+    def _pay_drop(self, order: Order, lowest: int) -> int:
+        """Pay the order's buyer down to `lowest` from its own reservation; 0 when nothing is owed."""
+        drop = int(order.price) - int(order.dropped) - lowest
+        if drop <= 0:
+            return 0
+        shop = self.shop_rows[str(order.shop_id)]
+        order.dropped = u256(int(order.dropped) + drop)
+        order.reserved = u256(int(order.reserved) - drop)
+        order.n_drops = u32(int(order.n_drops) + 1)
+        shop.bond = u256(int(shop.bond) - drop)
+        shop.reserved = u256(int(shop.reserved) - drop)
+        shop.dropped = u256(int(shop.dropped) + drop)
+        self.bonds = u256(int(self.bonds) - drop)
+        self.reserved_total = u256(int(self.reserved_total) - drop)
+        self.dropped_total = u256(int(self.dropped_total) + drop)
+        self.n_drops = u32(int(self.n_drops) + 1)
+        _Payee(order.buyer).emit_transfer(value=u256(drop))
+        return drop
+
     def _settle(self, row: Claim, how: str, now: int) -> None:
         """The single settlement of a claim: its final finding, then the fee, then the order. O(1).
 
@@ -1802,6 +1851,10 @@ class PriceMatch(gl.Contract):
         overturned = str(row.appeal_result) == OVERTURNED
         final = str(row.appeal_outcome) if overturned else str(row.outcome)
         refund = int(row.appeal_refund) if overturned else int(row.refund)
+        drop = self._pay_drop(order, self._lowest_price(order))
+        if final == OUT_MATCHED and drop > 0:
+            theirs = int(row.ours) - refund
+            refund = max(0, int(order.price) - int(order.dropped) - theirs)
         row.final = final
         row.paid = u256(refund)
         row.state = C_SETTLED

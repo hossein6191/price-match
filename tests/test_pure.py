@@ -253,7 +253,7 @@ def _as(sender, value=0, t=0):
 def _register():
     c = pm.PriceMatch.__new__(pm.PriceMatch)
     c.shop_rows = {}; c.product_rows = {}; c.order_rows = {}; c.claim_rows = {}
-    c.shop_names = {}; c.index = {}; c.counts = {}; c.credit = {}
+    c.shop_names = {}; c.index = {}; c.counts = {}; c.credit = {}; c.reprice_times = {}; c.reprice_prices = {}
     c.__init__()
     TRANSFERS.clear()
     return c
@@ -548,7 +548,8 @@ def state(c):
             [str(vars(c.product_rows[k])) for k in sorted(c.product_rows)],
             [str(vars(c.order_rows[k])) for k in sorted(c.order_rows)],
             [str(vars(c.claim_rows[k])) for k in sorted(c.claim_rows)],
-            dict(c.shop_names), dict(c.index), dict(c.counts), dict(c.credit), list(TRANSFERS))
+            dict(c.shop_names), dict(c.index), dict(c.counts), dict(c.credit), dict(c.reprice_times),
+            dict(c.reprice_prices), list(TRANSFERS))
 
 
 # ================================================================== rules
@@ -593,7 +594,9 @@ class TestRules:
         assert "the shop on matched, the buyer on anything else" in rules["appeal"]["who"]
         assert "once, within 900 seconds" in rules["appeal"]["when"] and rules["appeal"]["bond"].startswith(str(GEN // 20))
         assert set(rules["money"]) == {"fund", "withdraw_bond", "buy", "deposit", "claim", "settle", "appeal",
-                                       "claim_drop", "release", "refusal", "balance"}
+                                       "reprice", "claim_drop", "release", "refusal", "balance"}
+        assert "lowest price recorded during its window" in rules["money"]["claim_drop"]
+        assert "even if the price has gone back up" in rules["money"]["claim_drop"]
         assert set(rules["who"]) == {"open_shop", "fund", "withdraw_bond", "list_product", "reprice", "buy",
                                      "deposit", "withdraw", "claim", "appeal", "settle", "claim_drop", "release"}
 
@@ -607,6 +610,7 @@ class TestRules:
         assert limits["claim_fee"] == str(GEN // 100) and limits["page_chars"] == [40, 6000]
         assert limits["rows_per_page"] == 20 and limits["reason"] == [10, 280]
         assert limits["appeal_seconds"] == 900 == pm.APPEAL_WINDOW and limits["appeal_bond"] == str(GEN // 20)
+        assert limits["reprices_per_product"] == 16 == pm.MAX_REPRICES
         assert pm.APPEAL_BOND == GEN // 20
         assert "read the same, byte for byte, for every validator at the time of the claim" in limits["page"]
         assert (pm.CLAIM_FEE, pm.MAX_PAGE, pm.MIN_PAGE, pm.MAX_CLAIMS, pm.MAX_PRODUCTS) == (GEN // 100, 6000, 40, 2, 20)
@@ -1761,7 +1765,7 @@ class TestPriceProtection:
         _as(OWNER, 0, 12)
         out = json.loads(c.reprice(pid, str(17 * GEN // 10)))
         assert out == {"ok": True, "product": "P1", "was": str(2 * GEN), "price": str(17 * GEN // 10),
-                       "repriced_at": secs(12)}
+                       "repriced_at": secs(12), "reprices_left": 15}
         _as(S, 0, 13)
         assert orow(c, oid)["drop_due"] == str(3 * GEN // 10)
         _as(BUYER, 0, 13)
@@ -1773,8 +1777,8 @@ class TestPriceProtection:
         assert s["bond"] == str(97 * GEN // 10) and s["reserved"] == str(17 * GEN // 10) and s["dropped"] == str(
             3 * GEN // 10)
         _as(BUYER, 0, 14)
-        assert "is priced at " + str(17 * GEN // 10) + " atto, not below the " + str(17 * GEN // 10) in _err(
-            c.claim_drop, oid)
+        assert "was priced at no less than " + str(17 * GEN // 10) + " atto during the window of O1, not below the " \
+            + str(17 * GEN // 10) in _err(c.claim_drop, oid)
         _as(OWNER, 0, 15)
         c.reprice(pid, str(15 * GEN // 10))
         _as(BUYER, 0, 16)
@@ -1811,6 +1815,88 @@ class TestPriceProtection:
         assert out["result"] == "upheld" and out["paid"] == str(GEN // 10) and _sent() == [(BUYER, GEN // 10)]
         assert crow(c, cid)["appeal"]["refund"] == str(GEN // 10) and crow(c, cid)["ours"] == str(19 * GEN // 10)
 
+    def test_a_drop_raised_back_before_the_claim_is_still_owed(self):
+        c, shop, pid, oid = staged()
+        _net()
+        _as(OWNER, 0, 12)
+        c.reprice(pid, str(15 * GEN // 10))
+        _as(OWNER, 0, 72)
+        c.reprice(pid, str(2 * GEN))
+        _as(OWNER, 0, 80)
+        c.reprice(pid, str(19 * GEN // 10))
+        _as(S, 0, 90)
+        assert orow(c, oid)["drop_due"] == str(GEN // 2)
+        assert prow(c, pid)["history"] == [[secs(12), str(15 * GEN // 10)], [secs(72), str(2 * GEN)],
+                                           [secs(80), str(19 * GEN // 10)]]
+        _as(BUYER, 0, 100)
+        out = json.loads(c.claim_drop(oid))
+        assert out["paid"] == str(GEN // 2) and out["stands_at"] == str(15 * GEN // 10) and _sent() == [(BUYER, GEN // 2)]
+        _as(BUYER, 0, 101)
+        assert "there is no drop to claim" in _err(c.claim_drop, oid)
+        _as(OWNER, 0, 110)
+        c.reprice(pid, str(GEN))
+        _as(BUYER, 0, 111)
+        assert json.loads(c.claim_drop(oid))["paid"] == str(GEN // 2)
+
+    def test_only_prices_set_inside_the_order_s_window_count(self):
+        c, shop, pid, _ = staged(upto="deposit")
+        _as(OWNER, 0, 5)
+        c.reprice(pid, str(GEN))                         # before the purchase
+        _as(OWNER, 0, 6)
+        c.reprice(pid, str(2 * GEN))
+        oid = buy(c, pid, t=10)["order"]
+        _as(OWNER, 0, 10 + W)
+        c.reprice(pid, str(GEN))                         # the instant the window ends
+        _as(BUYER, 0, 10 + W)
+        assert "there is no drop to claim" in _err(c.claim_drop, oid)
+        c, shop, pid, oid = staged()
+        _as(OWNER, 0, 10)                                # the same instant as the purchase counts
+        c.reprice(pid, str(18 * GEN // 10))
+        _as(BUYER, 0, 11)
+        assert json.loads(c.claim_drop(oid))["paid"] == str(GEN // 5)
+
+    def test_a_release_pays_a_drop_still_owed_before_it_frees_the_reservation(self):
+        c, shop, pid, oid = staged()
+        _as(OWNER, 0, 12)
+        c.reprice(pid, str(16 * GEN // 10))
+        _as(OWNER, 0, 13)
+        c.reprice(pid, str(2 * GEN))
+        TRANSFERS.clear()
+        out = release(c, oid, by=S, t=10 + W)
+        assert out["drop_paid"] == str(2 * GEN // 5) and out["freed"] == str(16 * GEN // 10)
+        assert _sent() == [(BUYER, 2 * GEN // 5)]
+        _as(BUYER, 0, 10 + W + 1)
+        assert "O1 is released" in _err(c.claim_drop, oid)
+
+    def test_a_match_settled_after_a_drop_pays_down_to_the_lower_of_the_two(self):
+        c, shop, pid, oid = staged()
+        cid = _matched(c, t=20)                          # 2.00 against 1.80: 0.20 pending
+        _as(OWNER, 0, 21)
+        c.reprice(pid, str(19 * GEN // 10))
+        TRANSFERS.clear()
+        out = settle(c, cid, by=OWNER, t=22)
+        assert _sent() == [(BUYER, GEN // 10), (BUYER, GEN // 10)] and out["paid"] == str(GEN // 10)
+        c, shop, pid, oid = staged()
+        cid = _matched(c, t=20)
+        _as(OWNER, 0, 21)
+        c.reprice(pid, str(15 * GEN // 10))              # below the competitor's 1.80
+        TRANSFERS.clear()
+        out = settle(c, cid, by=OWNER, t=22)
+        assert _sent() == [(BUYER, GEN // 2)] and out["paid"] == "0" and out["status"] == "matched"
+        assert orow(c, oid)["dropped"] == str(GEN // 2) and srow(c, shop)["reserved"] == "0"
+
+    def test_the_price_history_is_bounded_and_then_reprice_is_refused(self):
+        c, shop, pid, oid = staged()
+        for k in range(pm.MAX_REPRICES):
+            _as(OWNER, 0, 12 + k)
+            assert json.loads(c.reprice(pid, str(GEN + (k % 2) * GEN // 10)))["reprices_left"] == 15 - k
+        _as(OWNER, 0, 40)
+        assert "has recorded 16 price changes, the most one product may; list a new product" in _err(
+            c.reprice, pid, str(3 * GEN))
+        assert len(prow(c, pid)["history"]) == 16 and prow(c, pid)["reprices_left"] == 0
+        _as(BUYER, 0, 41)
+        assert json.loads(c.claim_drop(oid))["paid"] == str(GEN)
+
     def test_a_higher_price_owes_nothing_and_new_buyers_pay_the_new_price(self):
         c, shop, pid, oid = staged()
         _as(OWNER, 0, 12)
@@ -1844,11 +1930,10 @@ class TestPriceProtection:
         cid = claim(c, oid, DEARER, settle=False, t=14)["claim"]
         _as(BUYER, 0, 15)
         assert "claim C1 on O1 is pending; a price drop waits until it settles" in _err(c.claim_drop, oid)
-        settle(c, cid, by=BUYER, t=15)
-        _as(BUYER, 0, 10 + W)
-        assert "the guarantee window of O1 has closed" in _err(c.claim_drop, oid)
-        _as(BUYER, 0, 10 + W - 1)
-        assert json.loads(c.claim_drop(oid))["paid"] == str(GEN)
+        TRANSFERS.clear()
+        assert settle(c, cid, by=BUYER, t=15)["ok"] and _sent() == [(BUYER, GEN)]   # settling pays the drop owed
+        _as(BUYER, 0, 16)
+        assert "there is no drop to claim" in _err(c.claim_drop, oid)
         release(c, oid, t=10 + W)
         _as(BUYER, 0, 10 + W + 1)
         assert "O1 is released" in _err(c.claim_drop, oid)
@@ -1861,8 +1946,8 @@ class TestRelease:
         _as(OWNER, 0, 10 + W - 1)
         assert "runs for another 1 seconds" in _err(c.release, oid)
         out = release(c, oid, by=S)
-        assert out == {"ok": True, "order": "O1", "status": "released", "freed": str(2 * GEN), "shop": "S1",
-                       "free": str(10 * GEN)}
+        assert out == {"ok": True, "order": "O1", "status": "released", "drop_paid": "0", "freed": str(2 * GEN),
+                       "shop": "S1", "free": str(10 * GEN)}
         assert _sent() == [] and orow(c, oid)["ended_by"] == "window"
         _as(S, 0, 10 + W + 5)
         assert "O1 is released" in _err(c.release, oid)
@@ -2027,7 +2112,7 @@ def _check_books(c, took):
             assert (int(o.reserved), int(o.refunded), o.ended_by) == (stands, 0, ""), oid
             assert "matched" not in finals and (len(ids) < 2 or o.pending), oid
         elif o.status == "matched":
-            assert int(o.reserved) == 0 and 0 < int(o.refunded) < stands and o.ended_by == "match", oid
+            assert int(o.reserved) == 0 and 0 <= int(o.refunded) < stands and o.ended_by == "match", oid
             assert finals[-1] == "matched" and finals.count("matched") == 1 and not o.pending, oid
             assert int(claims[ids[-1]].paid) == int(o.refunded), oid
         else:
@@ -2044,7 +2129,8 @@ def _check_books(c, took):
             assert (cl.settled_by == "appeal") == (cl.appeal_result != ""), cid
             want = cl.appeal_outcome if cl.appeal_result == "overturned" else cl.outcome
             assert cl.final == want and (cl.fee_to == "shop") == (cl.final == "different"), cid
-            assert (int(cl.paid) > 0) == (cl.final == "matched"), cid
+            assert int(cl.paid) == 0 or cl.final == "matched", cid
+            assert int(cl.paid) <= (int(cl.appeal_refund) if cl.appeal_result == "overturned" else int(cl.refund)), cid
             if cl.appeal_result:
                 assert cl.appeal_by == cl.side and cl.reason, cid
                 assert cl.bond_to == (cl.side if cl.appeal_result == "overturned" else
@@ -2426,9 +2512,11 @@ class TestRoutesOut:
         cid = claim(c, oid, DEARER, settle=False, t=20)["claim"]
         _as(BUYER, 0, 21)
         assert "a price drop waits until it settles" in _err(c.claim_drop, oid)
+        TRANSFERS.clear()
         settle(c, cid, by=BUYER, t=22)
+        assert _sent() == [(BUYER, GEN // 5)]   # the settlement pays the drop owed; nothing is left to claim
         _as(BUYER, 0, 23)
-        assert json.loads(c.claim_drop(oid))["paid"] == str(GEN // 5)
+        assert "there is no drop to claim" in _err(c.claim_drop, oid)
 
     def test_a_shop_refused_a_duplicate_name_opens_under_another(self):
         c = _register()
@@ -2546,9 +2634,10 @@ class TestStaticRules:
     # Writes that are open on purpose, each with its reason. A write added later that
     # has no refusing sender comparison and is not listed here fails.
     OPEN_ON_PURPOSE = {
-        "release": "anyone may release an order whose window has ended: nothing leaves the contract, the "
-                   "reservation goes back to the free bond of the shop recorded on the order whoever calls, so a "
-                   "shop's bond never waits on one account and nothing is released early",
+        "release": "anyone may release an order whose window has ended: the reservation goes back to the free bond "
+                   "of the shop recorded on the order whoever calls, after paying any price drop still owed to the "
+                   "order's own buyer, so a shop's bond never waits on one account, nothing is released early and "
+                   "no release cuts a drop off",
         "deposit": "anyone may add claim-fee credit, and it is only ever credited to the sender's own balance",
         "open_shop": "anyone may open a shop; the sender becomes its owner and nothing outside the new shop is "
                      "touched",
@@ -2572,6 +2661,8 @@ class TestStaticRules:
         ("_under", "prefixes[:MAX_PREFIXES]"): "MAX_PREFIXES",
         ("claims_of", "claims[:MAX_CLAIMS]"): "MAX_CLAIMS",
         ("_last_judged", "_loads(str(order.claims_json))[:MAX_CLAIMS]"): "MAX_CLAIMS",
+        ("_lowest_price", "range(min(int(product.n_reprices), MAX_REPRICES))"): "MAX_REPRICES",
+        ("_product_row", "range(min(int(p.n_reprices), MAX_REPRICES))"): "MAX_REPRICES",
         ("_money_problem", "SIGNS"): "SIGNS",
         ("_money_problem", "MONEY_WORDS"): "MONEY_WORDS",
         ("products_of", "ids[:PAGE]"): "PAGE",
@@ -2628,6 +2719,9 @@ class TestStaticRules:
     def test_the_open_writes_touch_only_what_they_say(self):
         assert "emit_transfer" not in _code(_fn("release")) and "gl.message.sender_address" not in _code(_fn("release"))
         assert "self._end_order(order, END_WINDOW, now, 0)" in _code(_fn("release"))
+        assert "drop = self._pay_drop(order, self._lowest_price(order))" in _code(_fn("release"))
+        assert [ast.unparse(n) for n in ast.walk(_fn("_pay_drop")) if isinstance(n, ast.Call)
+                and ast.unparse(n.func).endswith("emit_transfer")] == ["_Payee(order.buyer).emit_transfer(value=u256(drop))"]
         assert "emit_transfer" not in _code(_fn("deposit")).replace("self._refuse(", "")
         assert "self.credit[who] = u256(self._credit(who) + value)" in _code(_fn("deposit"))
         opened = _code(_fn("open_shop"))
@@ -2829,7 +2923,7 @@ class TestStaticRules:
         assert fields and not (fields & methods), fields & methods
         assert {ast.unparse(s.annotation) for s in cls.body if isinstance(s, ast.AnnAssign)} <= {
             "TreeMap[str, Shop]", "TreeMap[str, Product]", "TreeMap[str, Order]", "TreeMap[str, Claim]",
-            "TreeMap[str, str]", "TreeMap[str, u32]", "TreeMap[str, u256]", "u32", "u256"}
+            "TreeMap[str, str]", "TreeMap[str, u32]", "TreeMap[str, u256]", "TreeMap[str, u64]", "u32", "u256"}
 
     def test_every_transfer_goes_through_the_payee_interface(self):
         sends = [n for n in ast.walk(TREE) if isinstance(n, ast.Call) and ast.unparse(n.func).endswith("emit_transfer")]
@@ -2842,7 +2936,7 @@ class TestStaticRules:
             ("withdraw", "_Payee(sender).emit_transfer(value=u256(amount))"),
             ("_settle", "_Payee(shop.owner).emit_transfer(value=u256(CLAIM_FEE))"),
             ("_end_order", "_Payee(order.buyer).emit_transfer(value=u256(refund))"),
-            ("claim_drop", "_Payee(order.buyer).emit_transfer(value=u256(drop))"),
+            ("_pay_drop", "_Payee(order.buyer).emit_transfer(value=u256(drop))"),
         ])
 
     def test_every_order_ends_through_one_exit(self):

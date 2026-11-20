@@ -27,10 +27,12 @@ lowest-price promise: "it's out of stock", "your reading was wrong", and
   and the bond goes to the other side. Both readings stay on the record. No
   appeal of an appeal is possible, and once the 15 minutes have passed, anyone
   may settle, so no one can hold a claim open.
-- **Price protection, in code.** The shop may `reprice` a product. An open
-  order bought at a higher price may `claim_drop` the difference from its own
-  reservation in the same transaction. No model runs, because the evidence is
-  the shop's own price.
+- **Price protection, in code.** The shop may `reprice` a product, and every
+  change goes into the product's price history, up to 16 changes. An open
+  order may `claim_drop` the difference between what it paid and the lowest
+  price recorded during its window, from its own reservation, in the same
+  transaction. This holds even if the price has gone back up since. No model
+  runs, because the evidence is the shop's own price.
 
 Four new demo pages show the same kettle and the same earbuds for less, but
 sold out or on pre-order only. Every other demo page now says "In stock" in
@@ -102,12 +104,17 @@ at most two judged claims. The same page can be judged again for an order only
 a day after its last judgment, so a price that drops later in the window can
 still be claimed, but a page cannot be re-rolled at once.
 
-The shop may **reprice** a product at any time. When the new price is below
-what an open order paid, its buyer may **claim_drop** the difference. It is
-paid from that order's own reservation, which then stands at the lower price,
-and a later competitor match is measured against that lower price. When the
-window ends, anyone may **release** the order, and its reservation goes back to
-the shop's free bond. The shop can **withdraw** free bond at any time.
+The shop may **reprice** a product up to 16 times. Every change is recorded
+with its time in the product's price history. When a price recorded after an
+order's purchase and before its window ended is below what the order paid,
+its buyer may **claim_drop** the difference, even if the price has gone back up
+since. It is paid from that order's own reservation, which then stands at that
+lowest price, so a second `claim_drop` pays only a further drop. A later
+competitor match is measured against the lower price. Any drop still owed is
+paid automatically when a claim settles or the order is released. When the
+window ends, anyone may **release** the order: a drop still owed goes to the
+buyer, and the rest of the reservation goes back to the shop's free bond. The
+shop can **withdraw** free bond at any time.
 
 ## How consensus is used
 
@@ -225,11 +232,11 @@ buyer gives an address, and the network reads it.
 | `buy(product)`, payable | anyone but the owner | with exactly the price, while the free bond covers it |
 | `deposit()`, payable | anyone | credits the sender's own claim-fee credit |
 | `withdraw()` | anyone | takes back the sender's own credit |
-| `reprice(product, price_atto)` | the owner | any time; 0.1 to 100 GEN |
+| `reprice(product, price_atto)` | the owner | at most 16 times per product, then a new product; 0.1 to 100 GEN |
 | `claim(order, url)` | the buyer | inside the window, no claim pending; a page below an accepted prefix; at most 2 judged claims per order; the same page again only a day after its last judgment |
 | `appeal(claim, reason)` | the side the finding went against: the owner on matched, the buyer on anything else | once, within 15 minutes of the judgment, staking 0.05 GEN of credit; a reason of 10 to 280 characters |
 | `settle(claim)` | the side that may appeal, at any time, which waives the appeal; anyone after the 15 minutes | while the claim is pending |
-| `claim_drop(order)` | the buyer | inside the window, no claim pending, while the product's price is below what the order stands at |
+| `claim_drop(order)` | the buyer | while the order is open and no claim is pending, when a price recorded during its window is below what the order stands at |
 | `release(order)` | anyone | after the window, while the order is open and no claim is pending |
 
 Nine writes refuse by who the sender is: `fund`, `withdraw_bond`,
@@ -264,9 +271,9 @@ limit)`, `shops_of(address, offset, limit)`, `shops(offset, limit)`,
 | `settle`, different | the 0.01 GEN fee to the shop |
 | `appeal`, upheld | 0.05 GEN from the appellant's credit to the other side's credit |
 | `appeal`, overturned | the bond stays with the appellant; the money follows the second reading |
-| `reprice` | nothing |
-| `claim_drop` | what the order stands at minus the current price, from the order's reservation to the buyer |
-| `release` | nothing leaves; the reservation goes back to the shop's free bond |
+| `reprice` | nothing; the change is recorded in the product's price history |
+| `claim_drop` | what the order stands at minus the lowest price recorded during its window, from the order's reservation to the buyer |
+| `release` | a drop still owed goes to the buyer; the rest of the reservation goes back to the shop's free bond |
 | `withdraw_bond` | free bond to the owner |
 | `deposit` / `withdraw` | claim-fee credit in and out |
 | a refused payable call | everything sent goes back to the sender, in the same transaction |
@@ -410,12 +417,17 @@ outcome and the money.
 - **A refund is our price minus theirs, at most the whole price,** and only
   from the bond reserved for that order. The shop can never owe more than it
   reserved.
-- **Price protection follows the current price.** `claim_drop` pays what the
-  order stands at minus the product's price at the moment it is called. A shop
-  that lowers a price and raises it again before the buyer calls `claim_drop`
-  owes nothing for the gap. The buyer should claim while the price is down.
-  No model is asked: it is the shop's own price, stored on chain. A drop
-  waits while a claim on the order is pending.
+- **Price protection follows the lowest recorded price, and a product
+  records at most 16 price changes.** `claim_drop` pays what the order stands
+  at minus the lowest price recorded at or after its purchase and before its
+  window ended. A shop that lowers a price for a minute and raises it again
+  still owes the drop. After 16 changes, `reprice` on that product is refused
+  for good: the shop lists a new product for a new price, and orders of the
+  old product keep their history. A price set before the purchase, or at or
+  after the end of the window, does not count. No model is asked: it is the
+  shop's own price, stored on chain. A drop waits while a claim on the order is
+  pending, and it is paid when that claim settles. A competitor match that
+  settles after a drop pays down to the lower of the two prices, never both.
 - **Two judged claims per order; the same page again only after a day.** A
   page judged for an order can be judged again for it 86,400 seconds after its
   last judgment, while the window is open, so a later price drop can still be
@@ -460,10 +472,10 @@ genvm-lint check contracts/price_match.py
 python tools/mutate.py                    # rewrites tests/MUTATIONS.md; exits 1 if a mutant survives
 ```
 
-On this repository as it stands, `pytest tests/ -q` gives **173 passed** in
+On this repository as it stands, `pytest tests/ -q` gives **178 passed** in
 a few seconds. `genvm-lint check` (genvm-linter 0.11.0) prints
 `Lint passed (3 checks)` and reports 25 methods, 12 view and 13 write.
-`python tools/mutate.py` removes or inverts **312 defences** one at a time,
+`python tools/mutate.py` removes or inverts **330 defences** one at a time,
 and **none survives**.
 
 The on-chain run uses three throwaway keys it generates itself (SHOP, BUYER,
@@ -487,12 +499,13 @@ the buyer waiving its appeal; the in-stock page matched, its 0.20 GEN held
 pending; the buyer's appeal and a stranger's early settlement refused; the
 shop's appeal with a false reason, upheld, so the refund reaches the buyer in
 that transaction and the shop's 0.05 GEN bond goes to the buyer's credit; a
-second appeal refused; the earbuds repriced from 3.50 to 3.00 GEN and the
-0.50 GEN drop claimed from the order's reservation, with a stranger's reprice
+second appeal refused; the earbuds repriced from 3.50 to 3.00 GEN and straight
+back to 3.50 GEN, and the 0.50 GEN drop still claimed from the order's
+reservation afterwards, with a stranger's reprice
 and drop and a second drop refused; a release; the bond and the credit
 withdrawn. It must run straight through from the match to the shop's appeal,
 which has to land inside the 15-minute appeal window. It prints a PASS or FAIL
-line for each of its 42 checks, the balances before and after every step that
+line for each of its 43 checks, the balances before and after every step that
 moves money, `N passed, M failed`, and the contract address.
 
 ## The site

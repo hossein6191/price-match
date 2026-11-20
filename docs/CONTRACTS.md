@@ -120,7 +120,8 @@ delimiter lines with the first 16 hex characters of the body's own sha256.
 | field | what it holds |
 |---|---|
 | `shop_rows` | `Shop`: owner, name, `prefixes_json`, bond, reserved, funded, withdrawn, refunded, sales, fees_won, dropped, n_products, n_orders, n_open, opened_at |
-| `product_rows` | `Product`: shop_id, title, spec, price (the current one), window, listed_at, n_orders, repriced_at, n_reprices |
+| `product_rows` | `Product`: shop_id, title, spec, price (the current one), window, listed_at, n_orders, repriced_at, n_reprices (at most 16) |
+| `reprice_times`, `reprice_prices` | `<product>\|<k>` → when the k-th price change was made, and its price: the product's price history, at most `MAX_REPRICES` (16) entries |
 | `order_rows` | `Order`: product_id, shop_id, buyer, price (what was paid), bought_at, window_end, reserved (what the order stands at while open), status (`open`, `matched`, `released`), ended_by (`match`, `claims`, `window`), n_claims, `claims_json` (at most 2 ids), refunded, closed_at, pending (a claim id or ""), dropped, n_drops |
 | `claim_rows` | `Claim`: order_id, url, page_sha, ours; the first reading (product, stock, price, outcome, refund); side (who may appeal), appeal_end, state (`pending`, `settled`); the appeal (appeal_by, reason, appeal_product, appeal_stock, appeal_price, appeal_outcome, appeal_refund, appeal_result `overturned` or `upheld`, appeal_at, bond_to); the settlement (final, paid, fee_to, settled_by `window`, `waived` or `appeal`, settled_at); at |
 | `shop_names` | lowercase owner and name → shop id |
@@ -161,15 +162,20 @@ the single settlement of a claim: it picks the final reading, sends the fee to
 the shop on `different` or back to the buyer's credit otherwise, and ends the
 order through `_end_order` on a match or on the second judged claim.
 `_end_order` is the single exit of an order: it releases the reservation and
-pays a match from the bond. `claim_drop` pays from the order's reservation and
-keeps it equal to what the order stands at. Every settlement is O(1).
+pays a match from the bond. `_lowest_price` reads at most `MAX_REPRICES`
+history entries and returns the lowest price set at or after the purchase and
+before the window ended. `_pay_drop` pays down to it from the order's
+reservation and keeps the reservation equal to what the order stands at. It is
+called by `claim_drop`, by `_settle` and by `release`, so a drop owed is never
+cut off. Every settlement is O(1).
 
 ### Loops
 
 Every loop is bounded by a named constant, and a static test lists each one:
 the five URL signs, the prefixes (`MAX_PREFIXES`), the printable signs a
 spec is split on (`SIGNS`), the money words (`MONEY_WORDS`), an order's claims
-(`MAX_CLAIMS`) and every list page (`PAGE`). There is no `while`.
+(`MAX_CLAIMS`), a product's price history (`MAX_REPRICES`) and every list page
+(`PAGE`). There is no `while`.
 
 ### Errors
 

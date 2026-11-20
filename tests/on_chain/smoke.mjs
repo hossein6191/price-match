@@ -34,9 +34,10 @@
  *      a false reason, staking 0.05 GEN: the validators read the same page again, both orders, the reason fenced as
  *      one party's argument; upheld, so the 0.20 GEN reaches BUYER in that transaction and the bond goes to BUYER's
  *      credit. SHOP tries to appeal again: refused, no appeal of an appeal.
- *   D  price protection. STRANGER tries to reprice P2: refused. SHOP reprices P2 to 3.00 GEN. STRANGER tries to
- *      claim the drop on O2: refused. BUYER claims it: 0.50 GEN from O2's own reservation in the same transaction,
- *      no model asked. BUYER tries again: refused, nothing left to claim.
+ *   D  price protection. STRANGER tries to reprice P2: refused. SHOP reprices P2 to 3.00 GEN, then straight back to
+ *      3.50 GEN. STRANGER tries to claim the drop on O2: refused. BUYER claims it anyway: the lowest price recorded
+ *      during O2's window was 3.00 GEN, so 0.50 GEN comes from O2's own reservation in the same transaction, no
+ *      model asked. BUYER tries again: refused, nothing left to claim.
  *   E  once O2's window has closed, STRANGER releases it (3.00 GEN back to the free bond); SHOP withdraws the whole
  *      remaining bond, 6.30 GEN; BUYER withdraws its 0.10 GEN of credit; SHOP tries to withdraw credit it no longer
  *      holds: refused.
@@ -388,11 +389,13 @@ console.log(`\n[${stamp()}] ---- phase D: price protection, in code`);
   const sr = await call("repriceStranger", "stranger", "reprice", [pids.earbuds, String(NEW_PRICE)]);
   ok(`STRANGER may not reprice ${pids.earbuds}`, refused(sr, "only the owner of " + shopId + " may reprice " + pids.earbuds), `${votes(sr)}  ${sr.msg.slice(0, 110)}`);
   const rp = await call("reprice", "shop", "reprice", [pids.earbuds, String(NEW_PRICE)]);
-  ok(`SHOP reprices ${pids.earbuds} from 3.50 to 3.00 GEN`, rp.j?.ok === true && rp.j?.was === String(PRODUCTS[1].price) && rp.j?.price === String(NEW_PRICE), `${votes(rp)}  ${rp.msg.slice(0, 110)}`);
+  ok(`SHOP reprices ${pids.earbuds} from 3.50 to 3.00 GEN`, rp.j?.ok === true && rp.j?.was === String(PRODUCTS[1].price) && rp.j?.price === String(NEW_PRICE) && rp.j?.reprices_left === 15, `${votes(rp)}  ${rp.msg.slice(0, 110)}`);
+  const rb = await call("repriceBack", "shop", "reprice", [pids.earbuds, String(PRODUCTS[1].price)]);
+  ok(`SHOP raises ${pids.earbuds} straight back to 3.50 GEN: the 3.00 GEN stays in its price history`, rb.j?.ok === true && rb.j?.was === String(NEW_PRICE) && rb.j?.price === String(PRODUCTS[1].price) && rb.j?.reprices_left === 14, `${votes(rb)}  ${rb.msg.slice(0, 110)}`);
   const sd2 = await call("dropStranger", "stranger", "claim_drop", [oids.earbuds]);
   ok(`STRANGER may not claim the drop on BUYER's order ${oids.earbuds}`, refused(sd2, "only the buyer of " + oids.earbuds + " may claim a price drop on it"), `${votes(sd2)}  ${sd2.msg.slice(0, 110)}`);
   const d = await call("claimDrop", "buyer", "claim_drop", [oids.earbuds], { watch: ["buyer", "shop"], expect: { buyer: DROP, shop: 0n } });
-  ok(`BUYER claims the drop: 0.50 GEN from ${oids.earbuds}'s own reservation in the same transaction, no model asked`, d.j?.ok === true && d.j?.paid === String(DROP) && d.j?.stands_at === String(NEW_PRICE) && d.j?.reserved === String(NEW_PRICE) && moved(d, "buyer", DROP) && moved(d, "shop", 0n), `${votes(d)}  ${JSON.stringify(d.delta)}`);
+  ok(`BUYER claims the drop after the price went back up: the lowest recorded price, 3.00 GEN, is owed, so 0.50 GEN comes from ${oids.earbuds}'s own reservation in the same transaction, no model asked`, d.j?.ok === true && d.j?.paid === String(DROP) && d.j?.stands_at === String(NEW_PRICE) && d.j?.reserved === String(NEW_PRICE) && moved(d, "buyer", DROP) && moved(d, "shop", 0n), `${votes(d)}  ${JSON.stringify(d.delta)}`);
   const d2 = await call("claimDropAgain", "buyer", "claim_drop", [oids.earbuds]);
   ok("a second drop claim at the same price is refused: nothing left to claim", refused(d2, "there is no drop to claim"), `${votes(d2)}  ${d2.msg.slice(0, 110)}`);
 }
@@ -402,7 +405,7 @@ console.log(`\n[${stamp()}] ---- phase E: the window closes`);
 {
   await until("order", oids.earbuds, "window_end");
   const r2 = await call("releaseEarbuds", "stranger", "release", [oids.earbuds], { watch: ["stranger", "shop"], expect: { stranger: 0n, shop: 0n } });
-  ok(`STRANGER releases ${oids.earbuds} after its window: its 3.00 GEN reservation goes back to the free bond, nothing leaves the contract`, r2.j?.status === "released" && r2.j?.freed === String(NEW_PRICE) && r2.j?.free === String(LEFT) && moved(r2, "stranger", 0n), `${votes(r2)}  ${r2.msg.slice(0, 110)}`);
+  ok(`STRANGER releases ${oids.earbuds} after its window: its 3.00 GEN reservation goes back to the free bond, nothing leaves the contract`, r2.j?.status === "released" && r2.j?.freed === String(NEW_PRICE) && r2.j?.drop_paid === "0" && r2.j?.free === String(LEFT) && moved(r2, "stranger", 0n), `${votes(r2)}  ${r2.msg.slice(0, 110)}`);
   const wr = await call("withdrawBond", "shop", "withdraw_bond", [shopId, String(LEFT)], { watch: ["shop"], expect: { shop: LEFT } });
   ok("SHOP withdraws the whole remaining bond, 6.30 GEN", wr.j?.ok === true && wr.j?.withdrawn === String(LEFT) && wr.j?.bond === "0" && moved(wr, "shop", LEFT), `${votes(wr)}  ${JSON.stringify(wr.delta)}`);
   const wc = await call("withdrawCredit", "buyer", "withdraw", [], { watch: ["buyer"], expect: { buyer: CREDIT + APPEAL_BOND } });
@@ -426,7 +429,7 @@ console.log(`\n[${stamp()}] ---- phase F: the code read back, the views, the bal
   const s1 = await seen("shop", "shop", [shopId]);
   ok(`shop(${shopId}) reads an empty bond, nothing reserved, 5.50 GEN of sales, 0.20 GEN refunded and 0.50 GEN dropped`, s1.bond === "0" && s1.reserved === "0" && s1.sales === String(SALES) && s1.refunded === String(REFUND) && s1.dropped === String(DROP) && s1.fees_won === "0" && s1.withdrawn === String(LEFT) && s1.open_orders === 0, JSON.stringify({ bond: s1.bond, sales: s1.sales, refunded: s1.refunded, dropped: s1.dropped }));
   const stats = await seen("stats", "stats", []);
-  ok("stats(): two orders, two settled claims (one matched, one not in stock), one appeal upheld, one drop, one release, nothing held", stats.shops === 1 && stats.products === 2 && stats.orders === 2 && stats.claims === 2 && stats.settled === 2 && stats.pending === 0 && stats.matched === 1 && stats.not_in_stock === 1 && stats.appeals === 1 && stats.upheld === 1 && stats.overturned === 0 && stats.reprices === 1 && stats.drops === 1 && stats.released === 1 && stats.open_orders === 0 && stats.held === "0" && stats.stakes === "0" && stats.bonds_forfeited === String(APPEAL_BOND) && stats.refused_payments === 1 && stats.returned === String(PRODUCTS[0].price), JSON.stringify(stats));
+  ok("stats(): two orders, two settled claims (one matched, one not in stock), one appeal upheld, two reprices, one drop, one release, nothing held", stats.shops === 1 && stats.products === 2 && stats.orders === 2 && stats.claims === 2 && stats.settled === 2 && stats.pending === 0 && stats.matched === 1 && stats.not_in_stock === 1 && stats.appeals === 1 && stats.upheld === 1 && stats.overturned === 0 && stats.reprices === 2 && stats.drops === 1 && stats.released === 1 && stats.open_orders === 0 && stats.held === "0" && stats.stakes === "0" && stats.bonds_forfeited === String(APPEAL_BOND) && stats.refused_payments === 1 && stats.returned === String(PRODUCTS[0].price), JSON.stringify(stats));
   const rules = await seen("rules", "rules", []);
   ok("rules() publishes version 2, the stock question and the price question word for word, and the appeal", rules.version === 2 && rules.askings?.[2] === "3, blocks SPEC then PAGE: " + QUESTION_STOCK && rules.askings?.[4] === "5, blocks SPEC then PAGE: " + QUESTION_PRICE && String(rules.compared).includes("exact equality") && rules.appeal?.bond === String(APPEAL_BOND) + " atto of credit", String(rules.value));
   ok("the contract's own balance is zero", (await balance(st.contract)) === 0n, String(await balance(st.contract)));
