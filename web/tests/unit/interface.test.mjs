@@ -63,10 +63,14 @@ test("every write builder names a write method of the contract, with its argumen
     calls.deposit(10n ** 16n),
     calls.withdraw(),
     calls.claim("O1", "https://a.example/x/a.html"),
+    calls.appeal("C1", "The page shows it in stock."),
+    calls.settle("C1"),
+    calls.reprice("P1", 17n * 10n ** 17n),
+    calls.claimDrop("O1"),
     calls.release("O1"),
   ];
   const writes = Object.entries(all).filter(([, m]) => m.kind === "write").map(([n]) => n).sort();
-  assert.equal(writes.length, 9);
+  assert.equal(writes.length, 13);
   assert.deepEqual([...new Set(built.map((c) => c.fn))].sort(), writes, "the site can send every write and nothing else");
   for (const c of built) {
     const m = all[c.fn];
@@ -78,6 +82,7 @@ test("every write builder names a write method of the contract, with its argumen
   assert.equal(list.args[4], 1800, "the window travels as an integer");
   assert.equal(calls.openShop("A shop", ["https://a.example/x/"]).args[1], '["https://a.example/x/"]', "the prefixes travel as a JSON list");
   assert.equal(calls.withdrawBond("S1", 5n).args[1], "5");
+  assert.equal(calls.reprice("P1", 17n * 10n ** 17n).args[1], "1700000000000000000", "a new price travels as a string of digits");
 });
 
 test("every view the site reads is a view of the contract, and the site reads every view", () => {
@@ -90,8 +95,9 @@ test("every view the site reads is a view of the contract, and the site reads ev
   for (const name of views) assert.ok(mockSource.includes(`case "${name}":`), `the in-memory contract answers ${name}`);
 });
 
-test("the limits and the four questions are the contract's own", () => {
+test("the limits and the questions are the contract's own", () => {
   const nums = {
+    APPEAL_WINDOW: 900, MIN_REASON: 10, MAX_REASON: 280, MAX_REPRICES: 16,
     MIN_WINDOW: 1200, MIN_NAME: 3, MAX_NAME: 60, MIN_TITLE: 3, MAX_TITLE: 80, MIN_SPEC: 40, MAX_SPEC: 400, MAX_PREFIXES: 5, MAX_PREFIX: 160,
     MAX_PREFIXES_JSON: 1000, MAX_URL: 200, MAX_PRODUCTS: 20, MAX_CLAIMS: 2, REJUDGE_GAP: 86400, MIN_PAGE: 40, MAX_PAGE: 6000, PAGE: 20, ID_CHARS: 12, ADDRESS_CHARS: 42,
   };
@@ -110,6 +116,10 @@ test("the limits and the four questions are the contract's own", () => {
   assert.equal(rules.QUESTION_SAME, pyString("QUESTION_SAME"));
   assert.equal(rules.QUESTION_DIFFERENT, pyString("QUESTION_DIFFERENT"));
   assert.equal(rules.QUESTION_PRICE, pyString("QUESTION_PRICE"));
+  assert.equal(rules.QUESTION_STOCK, pyString("QUESTION_STOCK"));
+  assert.equal(rules.ARGUING, pyString("ARGUING"));
+  assert.equal(constant("APPEAL_BOND"), "ATTO // 20");
+  assert.equal(rules.APPEAL_BOND, 5n * 10n ** 16n);
   assert.equal(rules.READING, pyString("READING"));
   assert.match(raw, /^MONEY_WORDS = \("gen", "atto", "price", "prices", "priced", "pricing", "cost", "costs", "rrp", "msrp"\)$/m);
   assert.deepEqual(rules.MONEY_WORDS, ["gen", "atto", "price", "prices", "priced", "pricing", "cost", "costs", "rrp", "msrp"]);

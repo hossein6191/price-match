@@ -54,16 +54,17 @@ test("the demo shop's prefixes are accepted, and every page chip is an address t
   for (const p of DEMO_PRODUCTS) {
     const chips = pageChips(p.spec, prefixes);
     assert.equal(chips.length, DEMO_PAGES.length, "every demo page is offered");
-    assert.equal(chips.filter((c) => c.own).length, 5, `${p.key}: five pages about it, one per outcome`);
-    assert.deepEqual(chips.filter((c) => c.own).map((c) => c.page.expect).sort(), ["different", "different", "matched", "not_cheaper", "unclear"]);
+    const extra = p.key === "kettle" || p.key === "earbuds" ? ["not_in_stock", "not_in_stock"] : [];
+    assert.equal(chips.filter((c) => c.own).length, 5 + extra.length, `${p.key}: five pages about it, one per outcome, and the kettle and the earbuds a sold-out and a pre-order page`);
+    assert.deepEqual(chips.filter((c) => c.own).map((c) => c.page.expect).sort(), ["different", "different", "matched", "not_cheaper", ...extra, "unclear"].sort());
     for (const c of chips) assert.equal(rules.pageProblem(c.url, prefixes, "S1"), "", c.url);
   }
   assert.deepEqual(pageChips(DEMO_PRODUCTS[0].spec, ["https://other.example/pages/"]), [], "a shop with other prefixes gets no demo chips");
 });
 
-test("the forty-five demo pages are the files the validators read, and state what their chips say", () => {
+test("the forty-nine demo pages are the files the validators read, and state what their chips say", () => {
   assert.equal(DEMO_PRODUCTS.length, 9, "nine demo products");
-  assert.equal(DEMO_PAGES.length, 45, "five pages for each of them");
+  assert.equal(DEMO_PAGES.length, 49, "five pages for each of them, and four sold-out or pre-order pages");
   assert.equal(new Set(DEMO_PRODUCTS.map((p) => p.spec)).size, 9, "every spec is its own");
   // Both trees carry exactly the demo pages, no more and no fewer, and the index links every one.
   const index = readFileSync(new URL("../../../competitors/index.html", import.meta.url), "utf8");
@@ -85,6 +86,8 @@ test("the forty-five demo pages are the files the validators read, and state wha
     const stated = /^Price: (\d+\.\d+) GEN$/.exec(priceLine)?.[1];
     if (p.priceAtto) assert.equal(rules.attoOfAnswer(stated ?? ""), p.priceAtto, `${p.file}: its price`);
     else assert.ok(!/\d/.test(priceLine), `${p.file}: shows no number beside its price`);
+    const stock = { in_stock: /<p>In stock\b/, sold_out: /<p>Sold out\./, pre_order: /<p>Pre-order only\./ }[p.availability];
+    assert.match(repoCopy, stock, `${p.file}: the page says ${p.availability.replace("_", " ")}`);
   }
   for (const f of ["index.html", "shop.css"])
     assert.equal(readFileSync(new URL(`../../public/competitors/${f}`, import.meta.url), "utf8"), readFileSync(new URL(`../../../competitors/${f}`, import.meta.url), "utf8"), f);

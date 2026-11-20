@@ -131,11 +131,32 @@ test("lib/rules.ts reads every input as contracts/price_match.py does", (t) => {
     calls.push({ fn: "_combine_price", args: [a, b] });
     local.push(rules.combinePrice(a, b));
   }
+  for (const a of WORDS)
+    for (const b of WORDS) {
+      calls.push({ fn: "_combine_stock", args: [a, b] });
+      local.push(rules.combineStock(a, b));
+    }
   const ours = 2n * 10n ** 18n;
-  for (const [word, price] of [["same", "1800000000000000000"], ["same", "2000000000000000000"], ["same", "2300000000000000000"], ["same", ""], ["different", ""], ["unclear", ""]]) {
-    calls.push({ fn: "_outcome", args: [word, price, Number(ours)] });
-    local.push(rules.outcomeOf(word, price, ours));
+  for (const [word, stock, price] of [
+    ["same", "in_stock", "1800000000000000000"],
+    ["same", "in_stock", "2000000000000000000"],
+    ["same", "in_stock", "2300000000000000000"],
+    ["same", "in_stock", ""],
+    ["same", "out_of_stock", ""],
+    ["same", "out_of_stock", "1800000000000000000"],
+    ["same", "unclear", "1800000000000000000"],
+    ["same", "", "1800000000000000000"],
+    ["different", "", ""],
+    ["unclear", "", ""],
+  ]) {
+    calls.push({ fn: "_outcome", args: [word, stock, price, Number(ours)] });
+    local.push(rules.outcomeOf(word, stock, price, ours));
   }
+  for (const outcome of rules.OUTCOMES)
+    for (const refund of ["0", "200000000000000000"]) {
+      calls.push({ fn: "_buyer_value", args: [outcome, Number(refund)] });
+      local.push(rules.buyerValue(outcome, BigInt(refund)).toString());
+    }
   const answers = askContract(calls);
   if (!answers) return t.skip("no python3 on this machine");
   assert.equal(answers.length, local.length);
@@ -172,6 +193,70 @@ test("ids are read from the address bar, and the phase follows the contract's cl
   assert.equal(rules.phaseOf("open", 100, -1), "unknown");
   assert.equal(rules.phaseOf("matched", 100, 0), "closed");
   assert.equal(rules.phaseOf("released", 100, 0), "closed");
+  assert.equal(rules.phaseOf("open", 100, 50, "C3"), "pending", "a pending claim is the order's phase whatever the clock");
+  assert.equal(rules.phaseOf("open", 100, -1, "C3"), "pending");
+  assert.equal(rules.parseClaimId("c4"), "C4");
   assert.equal(rules.plain("“Spec” — one\nline…"), '"Spec" - one line...');
   assert.equal(rules.sentence("[TRANSIENT] the page could not be fetched"), "The page could not be fetched.");
+});
+
+test("the appeal window: who may appeal, its phase on the clock, and which reading wins", () => {
+  assert.equal(rules.APPEAL_WINDOW, 900);
+  assert.equal(rules.APPEAL_BOND, 5n * 10n ** 16n);
+  assert.equal(rules.sideOf("matched"), "shop");
+  for (const o of ["not_in_stock", "not_cheaper", "different", "unclear"]) assert.equal(rules.sideOf(o), "buyer", o);
+  const end = 1_000 + rules.APPEAL_WINDOW;
+  assert.equal(rules.claimPhaseOf("pending", end, 1_000), "appeal");
+  assert.equal(rules.claimPhaseOf("pending", end, end - 1), "appeal");
+  assert.equal(rules.claimPhaseOf("pending", end, end), "settle", "the window closes at its end, as the contract's now >= appeal_end");
+  assert.equal(rules.claimPhaseOf("pending", end, -1), "unknown");
+  assert.equal(rules.claimPhaseOf("settled", end, 1_000), "settled");
+  assert.equal(rules.appealLeft("pending", end, 1_000), 900);
+  assert.equal(rules.appealLeft("pending", end, end + 5), 0);
+  assert.equal(rules.appealLeft("settled", end, 1_000), 0);
+  const G = 10n ** 18n;
+  const match = { outcome: "matched", refund: G / 5n };
+  // The shop appeals a match: a smaller refund, or none, is better for it.
+  assert.equal(rules.appealBetter("shop", match, { outcome: "not_in_stock", refund: 0n }), true);
+  assert.equal(rules.appealBetter("shop", match, { outcome: "matched", refund: G / 10n }), true);
+  assert.equal(rules.appealBetter("shop", match, { outcome: "matched", refund: G / 5n }), false, "the same reading again is upheld");
+  // The buyer appeals anything else: a refund, or the fee back instead of lost, is better for them.
+  assert.equal(rules.appealBetter("buyer", { outcome: "not_in_stock", refund: 0n }, match), true);
+  assert.equal(rules.appealBetter("buyer", { outcome: "different", refund: 0n }, { outcome: "unclear", refund: 0n }), true, "the fee comes back");
+  assert.equal(rules.appealBetter("buyer", { outcome: "unclear", refund: 0n }, { outcome: "not_cheaper", refund: 0n }), false, "the fee came back either way");
+  assert.equal(rules.reasonProblem("  short  "), "the reason is 10 to 280 characters; this one is 5");
+  assert.equal(rules.reasonProblem("The page shows it in stock."), "");
+  assert.match(rules.reasonProblem("It is in stock ✓ really"), /printable ASCII on one line/);
+});
+
+test("price protection: the lowest price recorded in the window, the drop due, and a match after a drop", () => {
+  const G = 10n ** 18n;
+  const o = { priceAtto: (2n * G).toString(), droppedAtto: "0", boughtAt: 1000, windowEnd: 2800, status: "open", pending: "" };
+  const h = (at, tenths) => ({ at, priceAtto: ((tenths * G) / 10n).toString() });
+  assert.equal(rules.lowestPrice(o, []), 2n * G);
+  assert.equal(rules.dropDue(o, []), 0n);
+  // A drop to 1.7 and back to 2.0 inside the window is still owed: 0.3 GEN.
+  const down_up = [h(1500, 17n), h(1600, 20n)];
+  assert.equal(rules.lowestPrice(o, down_up), (17n * G) / 10n);
+  assert.equal(rules.dropDue(o, down_up), (3n * G) / 10n);
+  // Before the purchase or at the window's end does not count; the window's end is exclusive.
+  assert.equal(rules.dropDue(o, [h(999, 10n), h(2800, 10n)]), 0n);
+  assert.equal(rules.dropDue(o, [h(1000, 19n), h(2799, 18n)]), (2n * G) / 10n);
+  // A price above what the order paid owes nothing.
+  assert.equal(rules.dropDue(o, [h(1500, 25n)]), 0n);
+  // Once a drop was paid the order stands lower, and only a further drop is due.
+  const paid = { ...o, droppedAtto: ((3n * G) / 10n).toString() };
+  assert.equal(rules.dropDue(paid, down_up), 0n);
+  assert.equal(rules.dropDue(paid, [...down_up, h(2000, 15n)]), (2n * G) / 10n);
+  // Closed or pending: nothing is due now, as the contract's order view says.
+  assert.equal(rules.dropDue({ ...o, status: "released" }, down_up), 0n);
+  assert.equal(rules.dropDue({ ...o, pending: "C2" }, down_up), 0n);
+  // A match judged at 2.0 against 1.8 (refund 0.2), settled after a 0.3 drop: their price stays 1.8, so nothing more.
+  assert.equal(rules.refundAfterDrop(2n * G, G / 5n, (17n * G) / 10n), 0n);
+  assert.equal(rules.refundAfterDrop(2n * G, (5n * G) / 10n, (17n * G) / 10n), (2n * G) / 10n);
+  assert.equal(rules.refundAfterDrop(2n * G, G / 5n, 2n * G), G / 5n);
+  assert.equal(rules.MAX_REPRICES, 16);
+  assert.equal(rules.repriceProblem("P1", (17n * G) / 10n, 2n * G), "");
+  assert.equal(rules.repriceProblem("P1", 2n * G, 2n * G), "P1 is already priced at 2000000000000000000 atto");
+  assert.match(rules.repriceProblem("P1", 1n, 2n * G), /0\.1 GEN/);
 });

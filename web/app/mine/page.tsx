@@ -96,7 +96,12 @@ function Mine({ address }: { address: string }) {
       </section>
 
       <section aria-labelledby="credit">
-        <Aisle n="02" id="credit" title="Claim-fee credit" sub="A claim stakes 0.01 GEN of it. It stays yours on every outcome but one (the page offers another product), and comes back whole whenever you withdraw it." />
+        <Aisle
+          n="02"
+          id="credit"
+          title="Credit"
+          sub="A claim stakes 0.01 GEN of it and an appeal 0.05 GEN. A claim fee comes back on every outcome but one (the page offers another product); an appeal bond comes back when the appeal wins. Withdraw returns all of it."
+        />
         {orders.data && <Credit creditAtto={orders.data.creditAtto} />}
       </section>
 
@@ -148,8 +153,10 @@ function OrderRow({ o }: { o: Order }) {
     refundedAtto: o.refundedAtto,
     claimsLeft: o.claimsLeft,
     creditAtto: "1",
+    dropDueAtto: o.dropDueAtto,
     mock: isMock,
   });
+  const text = o.pending ? `Claim ${o.pending} is pending its 15-minute appeal window; nothing has moved yet. Open the order to appeal or settle it.` : line;
   return (
     <li>
       <Link href={orderPath(o.id)} className={cx("relative flex flex-wrap items-center gap-4 border-2 bg-paper p-3 hover:bg-tag-wash", o.status === "open" ? "border-ink" : "border-line-strong")}>
@@ -159,9 +166,9 @@ function OrderRow({ o }: { o: Order }) {
             {o.id} · {o.shop}
           </p>
           <p className="font-semibold">{o.title}</p>
-          <p className="text-sm text-ink-2">{line}</p>
+          <p className="text-sm text-ink-2">{text}</p>
         </div>
-        {phase === "claim" && (
+        {phase === "claim" && !o.pending && (
           <div className="bg-ink px-2.5 py-1.5 text-right text-tag">
             <p className="display text-[22px] leading-none font-bold">{clockText(o.windowEnd - clock)}</p>
             <p className="kicker text-[10px] text-white/70">guarantee left</p>
@@ -188,7 +195,7 @@ function Credit({ creditAtto }: { creditAtto: string }) {
           Withdraw all of it
         </ShelfButton>
       ) : (
-        <p className="text-sm text-ink-3">Nothing to withdraw. An order&apos;s page adds credit when you claim.</p>
+        <p className="text-sm text-ink-3">Nothing to withdraw. An order&apos;s page adds credit when you claim or appeal.</p>
       )}
       <TxStage
         tx={tx}

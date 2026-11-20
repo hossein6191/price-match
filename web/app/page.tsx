@@ -1,7 +1,7 @@
 "use client";
 
 // The front of the store: the promise in one minute, a receipt printing the demo's kettle match, how
-// the money moves, the four outcomes, and where to start.
+// the money moves, the five outcomes, the appeal and price protection, and where to start.
 
 import * as React from "react";
 
@@ -24,19 +24,28 @@ const EXAMPLE: Claim = {
   id: "C1",
   order: "O1",
   url: `https://raw.githubusercontent.com/…/competitors/${page.competitor}/${page.file}`,
-  product: "same",
-  priceAtto: page.priceAtto,
+  page: "",
+  oursAtto: kettle.priceAtto,
+  first: { product: "same", stock: "in_stock", priceAtto: page.priceAtto, outcome: "matched", refundAtto: refund },
+  mayAppeal: "shop",
+  appealEnd: 0,
+  state: "settled",
+  phase: "settled",
+  appeal: null,
   outcome: "matched",
-  refundAtto: refund,
+  final: "matched",
+  paidAtto: refund,
   feeTo: "buyer",
+  settledBy: "window",
+  settledAt: 0,
   at: 0,
 };
 
 const STEPS = [
   { icon: <IconStore />, title: "The shop promises", text: "It names the competitor pages it will match, fixed for good, and backs the promise with a bond the contract holds." },
   { icon: <IconBasket />, title: "You buy", text: "You pay exactly the price. It goes to the shop at once, and the same amount of its bond is reserved for you while the guarantee runs." },
-  { icon: <IconGlobe />, title: "Found it cheaper?", text: "Point at the competitor's page. Every validator opens it on the live web and asks: the same product? at what price?" },
-  { icon: <IconReceipt />, title: "The difference comes back", text: "If they agree it is the same product for less, the difference is paid to you from the bond in the same transaction." },
+  { icon: <IconGlobe />, title: "Found it cheaper?", text: "Point at the competitor's page. Every validator opens it on the live web and asks: the same product? in stock now? at what price?" },
+  { icon: <IconReceipt />, title: "The difference comes back", text: "If they agree it is the same product, in stock, for less, the difference is paid to you from the bond once the 15-minute appeal window closes." },
 ];
 
 export default function Home() {
@@ -68,7 +77,7 @@ export default function Home() {
             <PriceTag atto={kettle.priceAtto} size="xl" title="Lumio K3 kettle" struck small={<>Northgate has it for {tagPrice(page.priceAtto)} GEN</>} />
             <Sticker outcome="matched" line={`-${tagPrice(refund)} GEN`} land size={108} className="absolute top-0 right-0" />
           </div>
-          <Receipt head={["PRICE MATCH", "EXAMPLE · CLAIM C1 · ORDER O1"]} lines={claimLines(EXAMPLE, kettle.priceAtto)} print foot={["READ BY THE VALIDATORS, NOT THE SHOP"]} />
+          <Receipt head={["PRICE MATCH", "EXAMPLE · CLAIM C1 · ORDER O1"]} lines={claimLines(EXAMPLE, 0)} print foot={["READ BY THE VALIDATORS, NOT THE SHOP"]} />
         </div>
       </section>
 
@@ -93,23 +102,25 @@ export default function Home() {
       </section>
 
       <section aria-labelledby="money">
-        <Aisle n="02" id="money" title="How the money moves" sub="The contract only ever holds two things: each shop's bond, and each buyer's small claim-fee credit." />
+        <Aisle n="02" id="money" title="How the money moves" sub="The contract only ever holds three things: each shop's bond, each address's small credit for claim fees and appeal bonds, and the fees of claims still pending." />
         <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
           <MoneyBox who="Buyer" lines={["pays exactly the price", "deposits 0.01 GEN of claim-fee credit"]} />
           <Arrow text="the price, at once" />
           <MoneyBox who="Shop" lines={["receives the sale in the same transaction", "keeps a bond: each sale reserves its full price until the window ends"]} />
           <Arrow text="a match: the difference" back />
-          <MoneyBox who="Buyer again" lines={["gets our price minus theirs from the reserved bond", "keeps the claim fee unless the page was another product"]} tag />
+          <MoneyBox who="Buyer again" lines={["gets our price minus theirs from the reserved bond, once the appeal window closes", "gets the claim fee back unless the page was another product"]} tag />
         </div>
         <p className="mt-3 max-w-[80ch] text-[14px] text-ink-3">
-          When the window ends, anyone may release the order and its reservation goes back to the shop&apos;s free bond. A refused purchase sends everything back in the same
+          A finding waits 15 minutes before money moves: the side it went against may appeal once, with a reason and a 0.05 GEN bond, and the validators read the same page
+          again. If the shop itself lowers the price during your window, the drop is yours too, even if the price goes back up. When the window ends, anyone may release the
+          order; any drop still owed is paid first and the rest of its reservation goes back to the shop&apos;s free bond. A refused purchase sends everything back in the same
           transaction.
         </p>
       </section>
 
       <section aria-labelledby="outcomes">
-        <Aisle n="03" id="outcomes" title="Four ways a claim can end" />
-        <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Aisle n="03" id="outcomes" title="Five ways a claim can end" />
+        <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
           {OUTCOMES.map((o) => (
             <li key={o} className="card-soft flex flex-col items-center gap-3 p-5 text-center">
               <Sticker outcome={o} size={104} />
@@ -125,7 +136,8 @@ export default function Home() {
         </h2>
         <p className="mt-2 max-w-[66ch] text-[16px]">
           Harbour Lane Goods sells nine things, from a kettle to a wool throw. Buy one, pick a competitor page from the chips (the same product for less, another model, a refurbished
-          unit, a dearer page, a page with no price), and watch the validators read it.
+          unit, a dearer page, a page with no price, and for the kettle and the earbuds a cheaper page that is sold out or on pre-order), and watch the validators read it. Then
+          ask the shop to drop the price and claim the drop.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <ShelfLink href="/shop" variant="ink" icon={<IconTag />}>

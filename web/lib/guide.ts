@@ -1,9 +1,10 @@
 // What a visitor is told whenever they wait, in five plain lines: what is happening now and who it
 // waits for, how long that takes or the exact time, what is needed from them, whether they can close
 // the page, and where the money is right now. The same words for every in-between state of the site:
-// a wallet prompt, a transaction on its way, the validators opening a competitor's page, the guarantee
-// window running, an order waiting to be released, the demo shop topping up its bond, and the end of
-// an order.
+// a wallet prompt, a transaction on its way, the validators opening a competitor's page, a finding
+// pending for its appeal window, an appeal's second reading, a finding waiting to be settled, a price
+// drop owed, the guarantee window running, an order waiting to be released, the demo shop topping up
+// its bond, repricing or appealing, and the end of an order.
 //
 // Pure, with no React: the state, the viewer's role and the clock in, the words out. The waiting panel
 // (components/wait-panel.tsx) renders a guide; the rows of /mine and the merchant desk print the
@@ -11,7 +12,7 @@
 // what contracts/price_match.py does not do.
 
 import { clockTime, gen, span, windowLabel } from "./format.ts";
-import type { EndedBy, OrderStatus } from "./rules.ts";
+import type { EndedBy, OrderStatus, Outcome, Side } from "./rules.ts";
 import type { WriteFn } from "./types.ts";
 
 /** Who is looking: the buyer of the order, the owner of its shop, or anyone else. */
@@ -67,7 +68,7 @@ const ABOUT_30 = (mock?: boolean) => (mock ? "A few seconds in this demo build; 
 const READING_TIME = (mock?: boolean) =>
   mock
     ? "A few seconds in this demo build; 2 to 5 minutes on Studio, where every validator fetches the page itself."
-    : "Usually 2 to 5 minutes: every validator fetches the page itself and asks its model four questions about it.";
+    : "Usually 2 to 5 minutes: every validator fetches the page itself and asks its model up to six questions about it.";
 
 /** "You can close this page; O4 stays under My orders" (no full stop). */
 function keep(id: string, role: Role): string {
@@ -98,6 +99,14 @@ function moneyBeforeSigning(fn: WriteFn, amount: string): string {
       return `${amount} is still in your wallet; once you confirm it becomes claim-fee credit that you can withdraw at any time.`;
     case "claim":
       return "Nothing leaves your wallet: the claim stakes 0.01 GEN of the credit you already deposited.";
+    case "appeal":
+      return "Nothing leaves your wallet: the appeal stakes 0.05 GEN of the credit you already deposited.";
+    case "settle":
+      return "Nothing leaves your wallet: settling moves the claim's money as its finding says.";
+    case "claim_drop":
+      return `Nothing leaves your wallet: ${amount} of the shop's reserved bond comes to it.`;
+    case "reprice":
+      return "Repricing sends no GEN; the change is recorded in the product's price history for good.";
     case "withdraw":
       return `${amount} of claim-fee credit is held by the contract; withdrawing sends all of it to your wallet.`;
     case "withdraw_bond":
@@ -144,7 +153,7 @@ export function signGuide(s: SignInput): Guide {
 // ---- a plain transaction on its way ---------------------------------------------------------------------
 
 export type SendingInput = {
-  fn: Exclude<WriteFn, "claim">;
+  fn: Exclude<WriteFn, "claim" | "appeal">;
   /** "S2", "P4" or "O7": what the call is about */
   target: string;
   /** a product's title, for a purchase */
@@ -228,11 +237,39 @@ export function sendingGuide(s: SendingInput): Guide {
       return make({
         ...base,
         id: "release",
-        now: `Releasing ${s.target}: its reservation goes back to the shop's free bond`,
+        now: `Releasing ${s.target}: any price drop still owed goes to the buyer, then its reservation goes back to the shop's free bond`,
         time: `${ABOUT_30(s.mock)} No page is read.`,
         leave: "You can close this page; the release lands whether or not this page is open.",
         canLeave: true,
-        money: `${amount} of the shop's bond stops being reserved; nothing leaves the contract and nothing goes to anyone.`,
+        money: `${amount} of the shop's bond stops being reserved; apart from a price drop still owed to the buyer, nothing leaves the contract and nothing goes to anyone.`,
+      });
+    case "settle":
+      return make({
+        ...base,
+        id: "settle",
+        now: `Settling ${s.target}: its money moves as the finding says`,
+        time: `${ABOUT_30(s.mock)} No page is read.`,
+        leave: "You can close this page; the settlement lands whether or not this page is open.",
+        canLeave: true,
+        money: `Matched: ${amount} goes to the buyer from the reserved bond and the order closes. Different: the 0.01 GEN fee goes to the shop. Anything else: the fee goes back to the buyer's credit.`,
+      });
+    case "claim_drop":
+      return make({
+        ...base,
+        id: "claim_drop",
+        now: `Claiming the price drop on ${s.target}: the shop's own price history, no page is read`,
+        leave: "You can close this page; the payment lands whether or not this page is open.",
+        canLeave: true,
+        money: `${amount} goes from the order's reserved bond to your wallet in this transaction.`,
+      });
+    case "reprice":
+      return make({
+        ...base,
+        id: "reprice",
+        now: `Recording a new price for ${s.target}`,
+        leave: "You can close this page; the change is recorded whether or not this page is open.",
+        canLeave: true,
+        money: `Repricing sends no GEN; the new price is ${amount}, and every open order bought before it is owed any drop.`,
       });
   }
 }
@@ -268,7 +305,7 @@ export type ClaimInput = {
   mock?: boolean;
 };
 
-/** The one call the validators judge: each fetches the page and asks four questions about it. */
+/** The one call the validators judge first: each fetches the page and asks up to six questions about it. */
 export function claimGuide(c: ClaimInput): Guide {
   const price = gen(c.priceAtto);
   const late = c.stage === "late";
@@ -285,8 +322,40 @@ export function claimGuide(c: ClaimInput): Guide {
     leave: `${keep(c.order, c.role)}; the receipt prints on the order whether or not this page is open.`,
     canLeave: true,
     money: buyer
-      ? `0.01 GEN of your claim-fee credit is staked and ${price} of the shop's bond is reserved for you. Matched: the difference comes back to your wallet in this same transaction. Different: the fee goes to the shop. Not cheaper or unclear: nothing moves.`
-      : `0.01 GEN of the buyer's credit is staked and ${price} of the shop's bond is reserved for the order. Matched: the difference goes to the buyer in this same transaction. Different: the fee goes to the shop. Not cheaper or unclear: nothing moves.`,
+      ? `0.01 GEN of your claim-fee credit is staked and ${price} of the shop's bond is reserved for you. Nothing moves in this call: the finding waits 15 minutes for an appeal, then matched pays you the difference, different sends the fee to the shop, and anything else returns the fee.`
+      : `0.01 GEN of the buyer's credit is staked and ${price} of the shop's bond is reserved for the order. Nothing moves in this call: the finding waits 15 minutes for an appeal, then matched pays the buyer the difference, different sends the fee to the shop, and anything else returns the fee.`,
+  });
+}
+
+export type AppealInput = {
+  role: Role;
+  /** "C4" */
+  claim: string;
+  order: string;
+  page: string;
+  /** who appealed */
+  by: Side;
+  stage: "busy" | "late";
+  mock?: boolean;
+};
+
+/** An appeal: every validator reads the same page text again, with the appellant's reason fenced as an argument. */
+export function appealGuide(a: AppealInput): Guide {
+  const late = a.stage === "late";
+  const mine = (a.by === "buyer" && a.role === "buyer") || (a.by === "shop" && a.role === "owner");
+  const who = mine ? "your" : a.by === "shop" ? "the shop's" : "the buyer's";
+  return make({
+    id: late ? "appeal-late" : "appeal",
+    tone: late ? "late" : "busy",
+    waitsFor: "validators",
+    now: late ? `The validators are still reading ${a.page} a second time for ${a.claim}` : `The validators are reading ${a.page} a second time for ${a.claim}, with ${who} reason beside it`,
+    time: late
+      ? "Over 6 minutes so far. If the page no longer reads as it did, nothing is stored and the first finding still stands."
+      : READING_TIME(a.mock),
+    need: NOTHING_NEEDED,
+    leave: `${keep(a.order, a.role)}; the second reading prints on the same receipt whether or not this page is open.`,
+    canLeave: true,
+    money: `0.05 GEN of ${who} credit is staked as the appeal bond. Better for the appellant: the second reading replaces the first and the bond comes back. Otherwise the first stands and the bond goes to the other side. Either way the claim settles in this call.`,
   });
 }
 
@@ -310,7 +379,19 @@ export type OrderInput = {
   creditAtto?: string;
   /** a release of this order is on its way */
   releasing?: boolean;
+  /** the claim waiting for its appeal window, when there is one */
+  pending?: { id: string; outcome: Outcome; mayAppeal: Side; appealEnd: number; refundAtto: string };
+  /** the price drop owed now, from the shop's own price history */
+  dropDueAtto?: string;
   mock?: boolean;
+};
+
+const OUTCOME_TEXT: Record<Outcome, string> = {
+  matched: "matched",
+  not_in_stock: "not in stock",
+  not_cheaper: "not cheaper",
+  different: "a different product",
+  unclear: "unclear",
 };
 
 const FEE = 10n ** 16n;
@@ -344,7 +425,7 @@ export function orderGuide(o: OrderInput): Guide {
       waitsFor: "done",
       kicker: "Price matched · closed",
       now: o.role === "buyer" ? `Matched: ${refund} came back to you from the shop's bond` : o.role === "owner" ? `Matched: ${refund} went to the buyer from your bond` : `Matched: ${refund} went to the buyer from the shop's bond`,
-      time: "Paid in the same transaction as the claim.",
+      time: "Paid when the claim settled, after its appeal window.",
       need: NOTHING_LEFT,
       leave: `${stays}.`,
       canLeave: true,
@@ -380,6 +461,67 @@ export function orderGuide(o: OrderInput): Guide {
       leave: `${stays}.`,
       canLeave: true,
       money: `${reserved} of ${bondWord} is reserved for ${o.id}.`,
+    });
+
+  if (o.pending) {
+    const p = o.pending;
+    const finding = OUTCOME_TEXT[p.outcome];
+    const appealer: Role = p.mayAppeal === "shop" ? "owner" : "buyer";
+    const theirs = o.role === appealer;
+    const sideWord = p.mayAppeal === "shop" ? "the shop" : "the buyer";
+    const pays =
+      p.outcome === "matched"
+        ? `${gen(p.refundAtto)} is due to the buyer and waits in the ${reserved} reserved from ${bondWord}`
+        : p.outcome === "different"
+          ? `The 0.01 GEN claim fee is held and will go to the shop; ${reserved} of ${bondWord} stays reserved`
+          : `The 0.01 GEN claim fee is held and will go back to the buyer; ${reserved} of ${bondWord} stays reserved`;
+    if (o.now >= 0 && o.now < p.appealEnd) {
+      const left = p.appealEnd - o.now;
+      return make({
+        id: theirs ? "pending-appeal" : "pending",
+        tone: "clock",
+        waitsFor: theirs ? "you" : "clock",
+        kicker: "Finding pending · appeal window",
+        now: `${p.id} found ${finding}; ${theirs ? "you" : sideWord} may appeal it until ${at(p.appealEnd)}`,
+        time: `${span(left)} left to appeal. After that anyone may settle it, about 30 seconds.`,
+        need: theirs
+          ? "Only if you think the reading is wrong: appeal below with a reason (0.05 GEN of credit). Or settle now to waive your appeal. Doing nothing is fine too."
+          : o.role === "buyer" || o.role === "owner"
+            ? `Nothing is needed from you: only ${sideWord} may appeal. Once the window closes you or anyone may press Settle.`
+            : NOTHING_NEEDED,
+        leave: `${stays}; the finding waits on the contract, and nothing moves until it settles.`,
+        canLeave: true,
+        money: `Nothing has moved yet. ${pays} until it settles.`,
+        left,
+        leftLabel: "appeal window left",
+      });
+    }
+    return make({
+      id: "settle-due",
+      tone: "ready",
+      waitsFor: "anyone",
+      now: `The appeal window of ${p.id} closed at ${at(p.appealEnd)}; anyone may settle it`,
+      time: "Now: Settle takes about 30 seconds. No page is read.",
+      need: o.role === "visitor" ? "Nothing is needed from you; anyone may press Settle." : "Press Settle to move the money; anyone may, so it may also happen without you.",
+      leave: `${stays}; the finding waits until someone settles it.`,
+      canLeave: true,
+      money: `Nothing has moved yet. ${pays} until someone settles ${p.id}.`,
+    });
+  }
+
+  const due = o.dropDueAtto && /^\d+$/.test(o.dropDueAtto) ? BigInt(o.dropDueAtto) : 0n;
+  if (due > 0n && o.now >= 0 && o.now < o.windowEnd)
+    return make({
+      id: o.role === "buyer" ? "drop-owed" : "drop-owed-other",
+      tone: "ready",
+      waitsFor: o.role === "buyer" ? "you" : "clock",
+      kicker: "Price drop owed",
+      now: o.role === "buyer" ? `The shop lowered the price after you bought: ${gen(due)} is owed to you` : `The shop lowered the price after this purchase: ${gen(due)} is owed to the buyer`,
+      time: `Claim Drop takes about 30 seconds; no page is read. It stays owed until ${at(o.windowEnd)}, and a release pays it anyway.`,
+      need: o.role === "buyer" ? "Press Claim drop to take it now, or leave it: a release after the window pays it to you first." : NOTHING_NEEDED,
+      leave: `${stays}; the drop stays owed even if the price goes back up.`,
+      canLeave: true,
+      money: `${gen(due)} of the ${reserved} reserved from ${bondWord} is owed to the buyer; it moves when the buyer claims it or the order is released.`,
     });
 
   if (o.now < o.windowEnd) {
@@ -431,7 +573,7 @@ export function orderGuide(o: OrderInput): Guide {
           : "Nothing is needed from you; anyone may press Release.",
     leave: `${stays}; the reservation waits until someone releases it.`,
     canLeave: true,
-    money: `${reserved} of ${bondWord} is still reserved; Release returns it to the shop's free bond. Nothing goes to anyone.`,
+    money: `${reserved} of ${bondWord} is still reserved; Release pays any price drop still owed to the buyer first, then returns the rest to the shop's free bond.`,
   });
 }
 
@@ -464,6 +606,49 @@ export function restockGuide(r: RestockInput): Guide {
     leave: r.state === "asking" ? "Stay a few seconds while the demo shop sends its top-up." : "You can close this page; the top-up lands whether or not this page is open.",
     canLeave: r.state === "sending",
     money: "Your wallet is untouched: a top-up is the demo shop's own GEN, added to the bond that pays matches.",
+  });
+}
+
+export type DemoAskInput = {
+  state: "asking" | "sending" | "failed";
+  kind: "drop" | "raise" | "appeal";
+  /** "P1" or "C4" */
+  target: string;
+  reason?: string;
+  mock?: boolean;
+};
+
+/** A visitor asked the demo shop to lower or raise a demo product's price, or to appeal a matched finding. */
+export function demoAskGuide(d: DemoAskInput): Guide {
+  const what =
+    d.kind === "drop" ? `lower the price of ${d.target} by 0.30 GEN` : d.kind === "raise" ? `raise the price of ${d.target} back to its list price` : `appeal ${d.target}`;
+  const money =
+    d.kind === "appeal"
+      ? "Your wallet is untouched: the demo shop stakes 0.05 GEN of its own credit. If the second reading is no better for the shop, the bond goes to the buyer's credit."
+      : "Your wallet is untouched: a price change moves no GEN; any drop owed to an open order is paid from the shop's reserved bond when it is claimed.";
+  if (d.state === "failed")
+    return make({
+      id: "demo-ask-failed",
+      tone: "late",
+      waitsFor: "demo",
+      now: `The demo shop did not ${what}`,
+      time: "Try again in a minute.",
+      need: "Press the button again in a minute, or carry on without it.",
+      leave: "You can close this page; nothing was sent from your wallet.",
+      canLeave: true,
+      money,
+      note: d.reason,
+    });
+  return make({
+    id: d.state === "asking" ? "demo-ask-asking" : "demo-ask",
+    tone: "busy",
+    waitsFor: d.kind === "appeal" && d.state === "sending" ? "validators" : "demo",
+    now: `The demo shop is asked to ${what}`,
+    time: d.kind === "appeal" ? READING_TIME(d.mock) : ABOUT_30(d.mock),
+    need: NOTHING_NEEDED,
+    leave: d.state === "asking" ? "Stay a few seconds while the demo shop signs." : "You can close this page; the demo shop's transaction lands whether or not this page is open.",
+    canLeave: d.state === "sending",
+    money,
   });
 }
 

@@ -5,11 +5,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { claimGuide, orderGuide, restockGuide, sendingGuide, signGuide, updatingGuide, KICKERS } from "../../lib/guide.ts";
+import { appealGuide, claimGuide, demoAskGuide, orderGuide, restockGuide, sendingGuide, signGuide, updatingGuide, KICKERS } from "../../lib/guide.ts";
 
 const GEN = 10n ** 18n;
 const ROLES = ["buyer", "owner", "visitor"];
-const FNS = ["open_shop", "fund", "withdraw_bond", "list_product", "buy", "deposit", "withdraw", "claim", "release"];
+const FNS = ["open_shop", "fund", "withdraw_bond", "list_product", "buy", "deposit", "withdraw", "claim", "appeal", "settle", "reprice", "claim_drop", "release"];
 const NOW = 1_800_000_000;
 
 /** The five lines are there, plain, and the money line names an amount or says no GEN moves. */
@@ -50,7 +50,7 @@ test("the wallet prompt, for every call, live and in the demo build", () => {
 });
 
 test("every plain call on its way", () => {
-  for (const fn of FNS.filter((f) => f !== "claim"))
+  for (const fn of FNS.filter((f) => f !== "claim" && f !== "appeal"))
     for (const mock of [false, true]) {
       const g = sendingGuide({ fn, target: fn === "release" ? "O7" : "S2", title: "Lumio K3 kettle", amountAtto: (2n * GEN).toString(), window: 1800, mock });
       fivelines(g, `sending ${fn}`);
@@ -73,12 +73,68 @@ test("a claim while the validators read the page, busy and late, for every role"
       assert.equal(g.tone, stage);
       assert.match(g.now, /northgate\/lumio-k3-kettle\.html/);
       assert.match(g.money, /0\.01 GEN/);
-      assert.match(g.money, /Matched: the difference/);
-      assert.match(g.money, /Different: the fee goes to the shop/);
-      assert.match(g.money, /Not cheaper or unclear: nothing moves/);
+      assert.match(g.money, /Nothing moves in this call: the finding waits 15 minutes for an appeal/);
+      assert.match(g.money, /matched pays .* the difference, different sends the fee to the shop, and anything else returns the fee/);
     }
   assert.match(claimGuide({ role: "buyer", order: "O7", page: "p", priceAtto: "1", stage: "busy", mock: false }).time, /every validator fetches the page itself/);
   assert.match(claimGuide({ role: "buyer", order: "O7", page: "p", priceAtto: "1", stage: "late", mock: false }).time, /stores nothing, and the claim may be made again/);
+});
+
+test("an appeal while the validators read the page again, for every role and both sides", () => {
+  for (const role of ROLES)
+    for (const by of ["buyer", "shop"])
+      for (const stage of ["busy", "late"]) {
+        const g = appealGuide({ role, claim: "C4", order: "O7", page: "northgate/lumio-k3-kettle.html", by, stage, mock: false });
+        fivelines(g, `appeal ${role} ${by} ${stage}`);
+        assert.equal(g.waitsFor, "validators");
+        assert.match(g.money, /0\.05 GEN/);
+        assert.match(g.money, /the claim settles in this call/);
+        assert.match(g.now, /a second time for C4/);
+      }
+  assert.match(appealGuide({ role: "buyer", claim: "C4", order: "O7", page: "p", by: "buyer", stage: "busy" }).money, /of your credit/);
+  assert.match(appealGuide({ role: "buyer", claim: "C4", order: "O7", page: "p", by: "shop", stage: "busy" }).money, /of the shop's credit/);
+  assert.match(appealGuide({ role: "buyer", claim: "C4", order: "O7", page: "p", by: "buyer", stage: "late" }).time, /the first finding still stands/);
+});
+
+test("a pending finding: the appeal window counting down, settle when it closed, and a price drop owed", () => {
+  const pend = (over = {}) => ({ id: "C4", outcome: "matched", mayAppeal: "shop", appealEnd: NOW + 600, refundAtto: (GEN / 5n).toString(), ...over });
+  for (const role of ROLES)
+    for (const outcome of ["matched", "not_in_stock", "not_cheaper", "different", "unclear"]) {
+      const p = pend({ outcome, mayAppeal: outcome === "matched" ? "shop" : "buyer" });
+      const g = orderGuide(order({ role, pending: p }));
+      fivelines(g, `pending ${outcome} as ${role}`);
+      const mine = (p.mayAppeal === "shop" && role === "owner") || (p.mayAppeal === "buyer" && role === "buyer");
+      assert.equal(g.id, mine ? "pending-appeal" : "pending", `${outcome} as ${role}`);
+      assert.equal(g.left, 600, "the appeal window counts down");
+      assert.equal(g.leftLabel, "appeal window left");
+      assert.match(g.money, /^Nothing has moved yet\./);
+      if (mine) assert.match(g.need, /appeal below with a reason \(0\.05 GEN of credit\)/);
+      const due = orderGuide(order({ role, now: NOW + 601, pending: p }));
+      fivelines(due, `settle-due ${outcome} as ${role}`);
+      assert.equal(due.id, "settle-due");
+      assert.equal(due.waitsFor, "anyone");
+    }
+  assert.match(orderGuide(order({ pending: pend() })).money, /0\.20 GEN is due to the buyer and waits in the 2\.00 GEN reserved/);
+  assert.match(orderGuide(order({ pending: pend({ outcome: "different", mayAppeal: "buyer" }) })).money, /will go to the shop/);
+  for (const role of ROLES) {
+    const g = orderGuide(order({ role, dropDueAtto: ((3n * GEN) / 10n).toString() }));
+    fivelines(g, `drop owed as ${role}`);
+    assert.equal(g.id, role === "buyer" ? "drop-owed" : "drop-owed-other");
+    assert.match(g.now, /0\.30 GEN is owed/);
+  }
+  assert.match(orderGuide(order({ dropDueAtto: ((3n * GEN) / 10n).toString() })).need, /Press Claim drop/);
+  assert.equal(orderGuide(order({ dropDueAtto: "0" })).id, "window", "no drop owed: the window as before");
+});
+
+test("the demo shop asked to drop a price, raise it back, or appeal: asking, sending and failing", () => {
+  for (const kind of ["drop", "raise", "appeal"])
+    for (const state of ["asking", "sending", "failed"]) {
+      const g = demoAskGuide({ state, kind, target: kind === "appeal" ? "C4" : "P1", reason: "try again in 80 s" });
+      fivelines(g, `demo ${kind} ${state}`);
+      assert.match(g.money, /Your wallet is untouched/);
+    }
+  assert.equal(demoAskGuide({ state: "asking", kind: "drop", target: "P1" }).canLeave, false);
+  assert.match(demoAskGuide({ state: "sending", kind: "drop", target: "P1" }).now, /lower the price of P1 by 0\.30 GEN/);
 });
 
 test("every state of an order, for its buyer, its shop's owner and anyone else", () => {

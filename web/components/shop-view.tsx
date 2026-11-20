@@ -70,8 +70,8 @@ export function ShopHeader({ shop, demo }: { shop: Shop; demo: boolean }) {
         <p className="display mt-1 text-[40px] leading-none font-extrabold">{gen(shop.bondAtto)}</p>
         <BondMeter bondAtto={shop.bondAtto} reservedAtto={shop.reservedAtto} className="mt-3" />
         <p className="mt-3 text-[13px] text-ink-2">
-          Every sale reserves its full price from this bond until its window ends, because that is the most a match can ever give back. A match pays the difference from it in the
-          same transaction.
+          Every sale reserves its full price from this bond until its window ends, because that is the most a match can ever give back. A match pays the difference from it once its
+          15-minute appeal window closes, and a price the shop lowers during a window is paid back from it too.
         </p>
         {shop.refundedAtto !== "0" && (
           <p className="mt-2 text-[13px] text-ink-2">
@@ -132,7 +132,16 @@ function ProductCard({ p, shop, demo, onBought }: { p: Product; shop: Shop; demo
           <p className="mt-1.5 text-ink-3">Judged on {MATCH_ON.join(", ")}, and nothing else. The validators&apos; models read this spec and the page; never our price.</p>
         </details>
         <div className="mt-auto flex items-end justify-between gap-3 bg-shelf px-4 pt-3 pb-4">
-          <PriceTag atto={p.priceAtto} size="md" small={<>Lowest price guaranteed for {windowLabel(p.window)}</>} />
+          <PriceTag
+            atto={p.priceAtto}
+            size="md"
+            small={
+              <>
+                Lowest price guaranteed for {windowLabel(p.window)}
+                {p.reprices > 0 && <>; repriced {p.reprices === 1 ? "once" : `${p.reprices} times`}, any drop in your window is yours</>}
+              </>
+            }
+          />
           <div className="flex flex-col items-end gap-1 text-right text-[12px] text-ink-3">
             <span>{p.orders} sold</span>
             {p.covered ? <span className="text-fresh-ink">Bond covers a sale</span> : <span className="font-semibold text-red-ink">Bond does not cover a sale now</span>}

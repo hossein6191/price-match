@@ -67,7 +67,8 @@ export default function MerchantPage() {
         <h1 className="mt-1 text-[48px] sm:text-[60px]">Merchant desk</h1>
         <p className="mt-2 max-w-[70ch] text-ink-2">
           Promise to match a competitor&apos;s price, and back the promise with a bond. Buyers claim with the competitor&apos;s page; the network reads it, and a match pays
-          the difference from your bond in the same transaction. You never decide a claim, and neither does the buyer.
+          the difference from your bond once its 15-minute appeal window closes, and you may appeal a match once with a reason. You never decide a claim, and neither does the
+          buyer.
         </p>
       </div>
       {!me.address ? (

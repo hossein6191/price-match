@@ -88,7 +88,8 @@ pm = _load()
 
 ALLOWED = {
     "_text_problem", "_money_problem", "_url_problem", "_prefixes_problem", "_under", "_number_arg", "_atto",
-    "_combine_product", "_combine_price", "_outcome", "_read_word", "_read_price", "_whole",
+    "_combine_product", "_combine_price", "_combine_stock", "_outcome", "_buyer_value", "_read_word", "_read_price",
+    "_whole", "_clean_value",
 }
 
 

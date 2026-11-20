@@ -21,11 +21,15 @@ import {
   isDemoShopName,
   nextDemoShopName,
   pickDemoShop,
+  DEMO_APPEAL_REASON,
+  DEMO_DROP,
+  demoAppealProblem,
+  repricePlan,
   restockProblem,
   samePrefixes,
   scriptedReading,
 } from "../../lib/demo-shop.ts";
-import { outcomeOf } from "../../lib/rules.ts";
+import { outcomeOf, textProblem } from "../../lib/rules.ts";
 
 const HEX = "ab".repeat(32);
 
@@ -81,7 +85,8 @@ test("the demo build's scripted reading gives every demo page the outcome its ch
     assert.equal(demoPageOf(url), page);
     const r = scriptedReading(url, product.spec);
     assert.ok(!("error" in r));
-    assert.equal(outcomeOf(r.product, r.price, BigInt(product.priceAtto)), page.expect, page.file);
+    assert.equal(outcomeOf(r.product, r.stock, r.price, BigInt(product.priceAtto)), page.expect, page.file);
+    assert.equal(r.stock === "out_of_stock", page.availability !== "in_stock" && r.product === "same", `${page.file}: sold out and pre-order are not in stock`);
     for (const other of DEMO_PRODUCTS.filter((p) => p.key !== page.product)) {
       const x = scriptedReading(url, other.spec);
       assert.equal(x.product, "different", `${page.file} is another product for the ${other.key}`);
@@ -121,4 +126,29 @@ test("the demo shop is reopened, not reused, when the pages moved to a new commi
 
   const total = DEMO_PRODUCTS.reduce((sum, p) => sum + BigInt(p.priceAtto), 0n);
   assert.ok(DEMO_BOND >= 2n * total, "the opening bond covers two open sales of every product at once");
+});
+
+test("the demo shop reprices only its own demo products, keeps two changes in hand, and appeals only a pending match of its own", () => {
+  const G = 10n ** 18n;
+  const kettle = { id: "P1", shop: "S1", spec: DEMO_PRODUCTS[0].spec, priceAtto: DEMO_PRODUCTS[0].priceAtto, repricesLeft: 16 };
+  assert.deepEqual(repricePlan(kettle, "S1", "down"), { price: BigInt(DEMO_PRODUCTS[0].priceAtto) - DEMO_DROP });
+  assert.equal(DEMO_DROP, (3n * G) / 10n);
+  assert.match(repricePlan(kettle, "S1", "up").problem, /already at its list price/);
+  const lowered = { ...kettle, priceAtto: (BigInt(kettle.priceAtto) - DEMO_DROP).toString(), repricesLeft: 15 };
+  assert.deepEqual(repricePlan(lowered, "S1", "up"), { price: BigInt(DEMO_PRODUCTS[0].priceAtto) });
+  assert.match(repricePlan(lowered, "S1", "down").problem, /already below its list price/);
+  assert.match(repricePlan({ ...kettle, repricesLeft: 1 }, "S1", "down").problem, /keeps two to raise it back/);
+  assert.match(repricePlan({ ...lowered, repricesLeft: 0 }, "S1", "up").problem, /recorded every price change it may/);
+  assert.match(repricePlan({ ...kettle, shop: "S2" }, "S1", "down").problem, /not in the demo shop/);
+  assert.match(repricePlan({ ...kettle, spec: "x".repeat(40) }, "S1", "down").problem, /not one of the demo products/);
+  assert.match(repricePlan(null, "S1", "down").problem, /no such product/);
+  assert.match(repricePlan(kettle, "", "down").problem, /not open/);
+  assert.equal(textProblem(DEMO_APPEAL_REASON, 10, 280, "the reason"), "", "the demo shop's reason is one the contract takes");
+  const claim = { id: "C4", state: "pending", mayAppeal: "shop", appealEnd: 2000, outcome: "matched" };
+  assert.equal(demoAppealProblem(claim, "S1", "S1", 1500), "");
+  assert.match(demoAppealProblem(claim, "S1", "S1", 2000), /appeal window of C4 has closed/);
+  assert.match(demoAppealProblem({ ...claim, state: "settled" }, "S1", "S1", 1500), /C4 is settled/);
+  assert.match(demoAppealProblem({ ...claim, mayAppeal: "buyer", outcome: "not_in_stock" }, "S1", "S1", 1500), /found not in stock; only the buyer may appeal that/);
+  assert.match(demoAppealProblem(claim, "S2", "S1", 1500), /not on an order from the demo shop/);
+  assert.match(demoAppealProblem(null, "S1", "S1", 1500), /no such claim/);
 });

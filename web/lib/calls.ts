@@ -24,6 +24,14 @@ export const calls = {
   withdraw: (): Call => ({ fn: "withdraw", args: [] }),
   /** claim(order, url): the buyer, inside the window, a page below an accepted prefix. Judged in the same call. */
   claim: (order: string, url: string): Call => ({ fn: "claim", args: [order, url] }),
-  /** release(order): anyone, once the window has ended with the order still open. */
+  /** appeal(claim, reason): the side the pending finding went against, once, inside the appeal window. Stakes 0.05 GEN of credit; judged in the same call. */
+  appeal: (claim: string, reason: string): Call => ({ fn: "appeal", args: [claim, reason] }),
+  /** settle(claim): the side that may appeal at any time (which waives it); anyone once the appeal window has closed. */
+  settle: (claim: string): Call => ({ fn: "settle", args: [claim] }),
+  /** reprice(product, price_atto): the owner; the change is recorded in the product's history. The price travels as digits. */
+  reprice: (product: string, priceAtto: bigint): Call => ({ fn: "reprice", args: [product, priceAtto.toString()] }),
+  /** claim_drop(order): the buyer, while the order is open and no claim is pending; no model runs. */
+  claimDrop: (order: string): Call => ({ fn: "claim_drop", args: [order] }),
+  /** release(order): anyone, once the window has ended with the order still open and no claim pending. */
   release: (order: string): Call => ({ fn: "release", args: [order] }),
 };

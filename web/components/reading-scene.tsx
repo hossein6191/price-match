@@ -1,8 +1,8 @@
 "use client";
 
 // What the validators are doing while a claim's round runs, drawn from the transaction's own stage:
-// every validator fetches the competitor's page from the live web, asks its model the four askings in
-// both orders, and the contract keeps the one value they agree on exactly. The steps light up as the
+// every validator fetches the competitor's page from the live web, asks its model the askings (same
+// product, in stock, price) in both orders, and the contract keeps the one value they agree on exactly. The steps light up as the
 // round moves (the propose stage is the leader's reading, commit and reveal are the others' own
 // readings and votes). It shows what the stages mean; it does not claim to see inside a validator.
 

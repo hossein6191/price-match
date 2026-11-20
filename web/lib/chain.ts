@@ -21,8 +21,30 @@ import { getAddress, type Address } from "viem";
 import { notify } from "./browser-store";
 import { contractAddress, demoShopFallback } from "./config";
 import { RATE_LIMITED, createReadCache, decodeTx, isMissingMethodError, noteFailure, rpc, sleep, waitForCooldown, withRetry, type RawTx } from "./rpc";
-import { ORDER_STATUSES, OUTCOMES, PAGE, PRODUCT_WORDS, idNumber, phaseOf, sentence, type EndedBy, type FeeTo, type OrderStatus, type Outcome, type Phase, type ProductWord } from "./rules";
-import type { Account, Arg, Call, Claim, DemoStatus, Order, Paged, Product, ReadResult, RestockAnswer, Rules, Shop, Stats, TxStatus, WriteFn } from "./types";
+import {
+  ORDER_STATUSES,
+  OUTCOMES,
+  PAGE,
+  PRODUCT_WORDS,
+  STOCK_WORDS,
+  claimPhaseOf,
+  idNumber,
+  phaseOf,
+  sentence,
+  type AppealResult,
+  type ClaimPhase,
+  type EndedBy,
+  type FeeTo,
+  type OrderStatus,
+  type Outcome,
+  type Phase,
+  type ProductWord,
+  type Reprice,
+  type SettledBy,
+  type Side,
+  type StockWord,
+} from "./rules";
+import type { Account, Arg, Call, Claim, DemoAnswer, DemoStatus, Order, Paged, Product, ReadResult, Reading, RestockAnswer, Rules, Shop, Stats, TxStatus, WriteFn } from "./types";
 import { chainName, getChainId, getSigner } from "./wallet";
 
 export { RATE_LIMITED, cooldownRemainingMs } from "./rpc";
@@ -142,13 +164,36 @@ const result = <T>(data: T): ReadResult<T> => ({ data, source: SOURCE });
 // ---- row mappers (every missing field gets a default) -----------------------------------------------
 
 const orderStatus = (v: unknown): OrderStatus => (ORDER_STATUSES.includes(str(v) as OrderStatus) ? (str(v) as OrderStatus) : "open");
-const PHASES: Phase[] = ["claim", "release", "closed", "unknown"];
+const PHASES: Phase[] = ["claim", "release", "pending", "closed", "unknown"];
 const phase = (v: unknown): Phase => (PHASES.includes(str(v) as Phase) ? (str(v) as Phase) : "unknown");
 const ENDINGS: EndedBy[] = ["", "match", "claims", "window"];
 const endedBy = (v: unknown): EndedBy => (ENDINGS.includes(str(v) as EndedBy) ? (str(v) as EndedBy) : "");
 const productWord = (v: unknown): ProductWord => (PRODUCT_WORDS.includes(str(v) as ProductWord) ? (str(v) as ProductWord) : "unclear");
 const outcome = (v: unknown): Outcome => (OUTCOMES.includes(str(v) as Outcome) ? (str(v) as Outcome) : "unclear");
-const feeTo = (v: unknown): FeeTo => (str(v) === "shop" ? "shop" : "buyer");
+const feeTo = (v: unknown): FeeTo => (str(v) === "shop" ? "shop" : str(v) === "buyer" ? "buyer" : "");
+const stockWord = (v: unknown): StockWord => (STOCK_WORDS.includes(str(v) as StockWord) ? (str(v) as StockWord) : "");
+const side = (v: unknown): Side => (str(v) === "shop" ? "shop" : "buyer");
+const sideOrNone = (v: unknown): Side | "" => (str(v) === "shop" ? "shop" : str(v) === "buyer" ? "buyer" : "");
+const CLAIM_PHASES: ClaimPhase[] = ["appeal", "settle", "settled", "unknown"];
+const claimPhase = (v: unknown): ClaimPhase => (CLAIM_PHASES.includes(str(v) as ClaimPhase) ? (str(v) as ClaimPhase) : "unknown");
+const settledBy = (v: unknown): SettledBy => (["window", "waived", "appeal"].includes(str(v)) ? (str(v) as SettledBy) : "");
+const appealResult = (v: unknown): AppealResult => (str(v) === "overturned" ? "overturned" : str(v) === "upheld" ? "upheld" : "");
+/** A product's price history: [[seconds, "<atto>"], ...], oldest first. */
+const history = (v: unknown): Reprice[] =>
+  (Array.isArray(v) ? v : []).filter((h): h is unknown[] => Array.isArray(h) && h.length >= 2).map((h) => ({ at: secs(h[0]), priceAtto: atto(h[1]) }));
+
+/** One reading's words: the stock is kept only beside a same product, the price only beside in stock. */
+export function mapReading(r: Row): Reading {
+  const word = productWord(r.product);
+  const stock = word === "same" ? stockWord(r.stock) || "unclear" : "";
+  return {
+    product: word,
+    stock,
+    priceAtto: stock === "in_stock" ? priceText(r.price) : "",
+    outcome: outcome(r.outcome),
+    refundAtto: atto(r.refund),
+  };
+}
 
 export function mapShop(r: Row, id = ""): Shop {
   return {
@@ -164,6 +209,7 @@ export function mapShop(r: Row, id = ""): Shop {
     refundedAtto: atto(r.refunded),
     salesAtto: atto(r.sales),
     feesWonAtto: atto(r.fees_won),
+    droppedAtto: atto(r.dropped),
     products: num(r.products),
     orders: num(r.orders),
     openOrders: num(r.open_orders),
@@ -185,6 +231,10 @@ export function mapProduct(r: Row, id = ""): Product {
     orders: num(r.orders),
     freeBondAtto: atto(r.free_bond),
     covered: r.covered === true,
+    repricedAt: secs(r.repriced_at),
+    reprices: num(r.reprices),
+    repricesLeft: num(r.reprices_left),
+    history: history(r.history),
   };
 }
 
@@ -196,12 +246,16 @@ export function mapOrder(r: Row, id = ""): Order {
     title: str(r.title),
     buyer: addr(r.buyer),
     priceAtto: atto(r.price),
+    standsAtAtto: r.stands_at === undefined ? atto(r.price) : atto(r.stands_at),
+    droppedAtto: atto(r.dropped),
+    dropDueAtto: atto(r.drop_due),
     boughtAt: secs(r.bought_at),
     windowEnd: secs(r.window_end),
     reservedAtto: atto(r.reserved),
     status: orderStatus(r.status),
     endedBy: endedBy(r.ended_by),
     phase: phase(r.phase),
+    pending: /^C[1-9]\d{0,8}$/.test(str(r.pending)) ? str(r.pending) : "",
     claims: strings(r.claims),
     claimsLeft: num(r.claims_left),
     refundedAtto: atto(r.refunded),
@@ -211,19 +265,37 @@ export function mapOrder(r: Row, id = ""): Order {
 }
 
 export function mapClaim(r: Row): Claim {
-  const word = productWord(r.product);
+  const first = mapReading(r);
+  const a = asRow(r.appeal);
+  const appealed = sideOrNone(a.by) !== "";
+  const final = OUTCOMES.includes(str(r.final) as Outcome) ? (str(r.final) as Outcome) : "";
+  const state = str(r.state) === "pending" ? "pending" : "settled";
   return {
     id: str(r.claim),
     order: str(r.order),
     url: str(r.url),
-    product: word,
-    priceAtto: word === "same" ? priceText(r.price) : "",
-    outcome: outcome(r.outcome),
-    refundAtto: atto(r.refund),
+    page: str(r.page),
+    oursAtto: atto(r.ours),
+    first,
+    mayAppeal: side(r.may_appeal),
+    appealEnd: secs(r.appeal_end),
+    state,
+    phase: claimPhase(r.phase),
+    appeal: appealed
+      ? { ...mapReading(a), by: side(a.by), reason: str(a.reason), result: appealResult(a.result), at: secs(a.at), bondTo: sideOrNone(a.bond_to) }
+      : null,
+    outcome: final || first.outcome,
+    final,
+    paidAtto: atto(r.paid),
     feeTo: feeTo(r.fee_to),
+    settledBy: settledBy(r.settled_by),
+    settledAt: secs(r.settled_at),
     at: secs(r.at),
   };
 }
+
+/** A claim's phase on the browser's clock: the contract's own rule, so the appeal countdown that runs out moves the page on. */
+export const claimPhaseNow = (c: { state: Claim["state"]; appealEnd: number }, nowSeconds: number): ClaimPhase => claimPhaseOf(c.state, c.appealEnd, nowSeconds);
 
 export function mapStats(r: Row): Stats {
   return {
@@ -232,21 +304,32 @@ export function mapStats(r: Row): Stats {
     orders: num(r.orders),
     claims: num(r.claims),
     judged: num(r.judged),
+    settled: num(r.settled),
+    pending: num(r.pending),
     matched: num(r.matched),
+    notInStock: num(r.not_in_stock),
     notCheaper: num(r.not_cheaper),
     different: num(r.different),
     unclear: num(r.unclear),
+    appeals: num(r.appeals),
+    overturned: num(r.overturned),
+    upheld: num(r.upheld),
+    reprices: num(r.reprices),
+    drops: num(r.drops),
     released: num(r.released),
     openOrders: num(r.open_orders),
     bondsAtto: atto(r.bonds),
     reservedAtto: atto(r.reserved),
     creditsAtto: atto(r.credits),
+    stakesAtto: atto(r.stakes),
     heldAtto: atto(r.held),
     fundedAtto: atto(r.funded),
     withdrawnAtto: atto(r.withdrawn),
     salesAtto: atto(r.sales),
     refundedAtto: atto(r.refunded),
     feesToShopsAtto: atto(r.fees_to_shops),
+    droppedAtto: atto(r.dropped),
+    bondsForfeitedAtto: atto(r.bonds_forfeited),
     depositedAtto: atto(r.deposited),
     creditWithdrawnAtto: atto(r.credit_withdrawn),
     refusedPayments: num(r.refused_payments),
@@ -260,7 +343,7 @@ const paged = <T>(value: Row, map: (r: Row) => T): Paged<T> => {
 };
 
 /** The order's phase on the browser's clock: the contract's own rule, so a countdown that runs out moves the page on. */
-export const orderPhaseNow = (o: { status: OrderStatus; windowEnd: number }, nowSeconds: number): Phase => phaseOf(o.status, o.windowEnd, nowSeconds);
+export const orderPhaseNow = (o: { status: OrderStatus; windowEnd: number; pending?: string }, nowSeconds: number): Phase => phaseOf(o.status, o.windowEnd, nowSeconds, o.pending ?? "");
 
 // ---- reads: one function per view ---------------------------------------------------------------------
 
@@ -335,7 +418,14 @@ export async function readShopsWindow(maxPages = 3, opts: Fresh = {}): Promise<R
 /** account(address): the claim-fee credit, and how many shops it owns and orders it bought. */
 export async function readAccount(address: string, opts: Fresh = {}): Promise<ReadResult<Account>> {
   const r = asRow(await view("account", [address.toLowerCase()], opts));
-  return result({ address: addr(r.address), creditAtto: atto(r.credit), shops: num(r.shops), orders: num(r.orders), claimFeeAtto: atto(r.claim_fee) });
+  return result({
+    address: addr(r.address),
+    creditAtto: atto(r.credit),
+    shops: num(r.shops),
+    orders: num(r.orders),
+    claimFeeAtto: atto(r.claim_fee),
+    appealBondAtto: atto(r.appeal_bond),
+  });
 }
 
 /** stats(): the contract's totals. */
@@ -352,8 +442,8 @@ export async function readRules(): Promise<ReadResult<Rules>> {
 
 export { calls } from "./calls";
 
-/** True for the one call the validators judge by fetching a page and asking their models: the rail then shows their votes. */
-export const isJudged = (fn: WriteFn) => fn === "claim";
+/** True for the calls the validators judge by fetching a page and asking their models: the rail then shows their votes. */
+export const isJudged = (fn: WriteFn) => fn === "claim" || fn === "appeal";
 
 const WRONG_CHAIN = (chainId: number | null) => `Your wallet is on ${chainName(chainId)}. Switch it to GenLayer Studio (chain 61999) before signing.`;
 
@@ -465,24 +555,34 @@ export const boughtOrder = (s: TxStatus | null): string => {
   return p.kind === "done" && /^O\d+$/.test(str(p.result.order)) ? str(p.result.order) : "";
 };
 
-export type ClaimResult = { claim: string; product: ProductWord; priceAtto: string; outcome: Outcome; refundAtto: string; feeTo: FeeTo; status: OrderStatus; claimsLeft: number };
+export type ClaimResult = { claim: string; reading: Reading; appealEnd: number; mayAppeal: Side; status: OrderStatus };
 
-/** claim()'s return: the agreed value and what moved in the same call. */
+/** claim()'s return: the agreed reading, pending for its appeal window. Nothing moved in this call. */
 export function claimOutcome(s: TxStatus | null): ClaimResult | null {
   if (!ok(s) || !OUTCOMES.includes(str(s.result.outcome) as Outcome)) return null;
   const r = s.result;
-  const word = productWord(r.product);
+  return { claim: str(r.claim), reading: mapReading(r), appealEnd: secs(r.appeal_end), mayAppeal: side(r.may_appeal), status: orderStatus(r.status) };
+}
+
+export type AppealOutcome = { claim: string; reading: Reading; result: AppealResult; bondTo: Side | ""; final: Outcome; paidAtto: string; feeTo: FeeTo };
+
+/** appeal()'s return: the second reading, whether it replaced the first, and how the claim settled in the same call. */
+export function appealOutcome(s: TxStatus | null): AppealOutcome | null {
+  if (!ok(s) || !OUTCOMES.includes(str(s.result.final) as Outcome)) return null;
+  const r = s.result;
   return {
     claim: str(r.claim),
-    product: word,
-    priceAtto: word === "same" ? priceText(r.price) : "",
-    outcome: outcome(r.outcome),
-    refundAtto: atto(r.refund),
+    reading: mapReading(r),
+    result: appealResult(r.result),
+    bondTo: sideOrNone(r.bond_to),
+    final: str(r.final) as Outcome,
+    paidAtto: atto(r.paid),
     feeTo: feeTo(r.fee_to),
-    status: orderStatus(r.status),
-    claimsLeft: num(r.claims_left),
   };
 }
+
+/** settle()'s or claim_drop()'s return: what was paid, "0" when nothing. */
+export const paidOf = (s: TxStatus | null): string => (ok(s) ? atto(s.result.paid ?? s.result.drop_paid) : "0");
 
 /** True when GEN moves to or from somebody because of this call, so balances are watched afterwards. */
 export function movesMoney(s: TxStatus): boolean {
@@ -490,7 +590,7 @@ export function movesMoney(s: TxStatus): boolean {
   if (!r) return false;
   if (r.ok === false) return atto(r.returned) !== "0";
   if (r.ok !== true) return false;
-  for (const k of ["added", "withdrawn", "forwarded", "refund"]) if (atto(r[k]) !== "0") return true;
+  for (const k of ["added", "withdrawn", "forwarded", "paid", "drop_paid"]) if (atto(r[k]) !== "0") return true;
   return str(r.fee_to) === "shop";
 }
 
@@ -525,6 +625,26 @@ export async function requestRestock(product: string): Promise<RestockAnswer> {
     });
     const body = (await res.json()) as Record<string, unknown>;
     if (body.ok === true && body.already === true) return { ok: true, hash: "", already: true };
+    if (body.ok === true && typeof body.hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(body.hash)) return { ok: true, hash: body.hash };
+    return { ok: false, reason: sentence(str(body.reason, "the demo shop did not answer")), retryAfter: num(body.retryAfter) || undefined };
+  } catch {
+    return { ok: false, reason: "The site's server did not answer. Try again in a minute." };
+  }
+}
+
+/** What a visitor may ask the demo shop to do: reprice a product down or back up, or appeal a matched finding. */
+export type DemoAsk = { kind: "reprice"; product: string; direction: "down" | "up" } | { kind: "appeal"; order: string; claim: string };
+
+/** Asks the demo shop's server to sign one call for the visitor's test. Resolves to its hash, or why not. */
+export async function requestDemo(ask: DemoAsk): Promise<DemoAnswer> {
+  if (isMock) return mock.demoAsk(ask);
+  try {
+    const res = await fetch(ask.kind === "reprice" ? "/api/demo/reprice" : "/api/demo/appeal", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(ask.kind === "reprice" ? { product: ask.product, direction: ask.direction } : { order: ask.order, claim: ask.claim }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
     if (body.ok === true && typeof body.hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(body.hash)) return { ok: true, hash: body.hash };
     return { ok: false, reason: sentence(str(body.reason, "the demo shop did not answer")), retryAfter: num(body.retryAfter) || undefined };
   } catch {

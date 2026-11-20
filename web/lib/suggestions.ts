@@ -86,9 +86,23 @@ export const BOND_CHIPS: Chip<bigint>[] = [
   { label: "25 GEN", value: 25n * GEN },
 ];
 
-/** Claim-fee credit: one claim stakes 0.01 GEN. */
+/** Credit: one claim stakes 0.01 GEN, one appeal 0.05 GEN. */
 export const CREDIT_CHIPS: Chip<bigint>[] = [
   { label: "0.01 GEN, one claim", value: GEN / 100n },
   { label: "0.02 GEN, two claims", value: GEN / 50n },
-  { label: "0.05 GEN", value: GEN / 20n },
+  { label: "0.07 GEN, two claims and an appeal", value: (GEN * 7n) / 100n },
+];
+
+/** Credit for an appeal bond: 0.05 GEN, or a little more. */
+export const BOND_CREDIT_CHIPS: Chip<bigint>[] = [
+  { label: "0.05 GEN, one appeal", value: GEN / 20n },
+  { label: "0.10 GEN", value: GEN / 10n },
+];
+
+/** Reasons an appellant can pick with one click; each is printable ASCII inside the contract's 10 to 280 characters. */
+export const REASON_CHIPS: Chip<string>[] = [
+  { label: "It is in stock", value: "The page shows the item in stock and available to buy now; please read the availability line again." },
+  { label: "Same model", value: "The page states the same brand, model, size, colour and new condition as the spec; please read the table again." },
+  { label: "Read the price", value: "The page shows one current price for the item; please read the price line again." },
+  { label: "Not the same item", value: "The page offers another model or a refurbished unit; please compare the model code and the condition again." },
 ];

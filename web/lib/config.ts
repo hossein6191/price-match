@@ -1,14 +1,24 @@
-// Site settings. One place for the contract address, the name and the tagline.
+// Site settings. One place for the contract address, the demo pages' pinned commit, the name and the
+// tagline.
 //
-// DEMO_CONTRACT is the deployed copy the site reads when NEXT_PUBLIC_CONTRACT is unset. It is filled
-// in once the contract is deployed; while both are empty every page says the contract is not
-// deployed yet, and the whole site still works with NEXT_PUBLIC_MOCK=1.
-export const DEMO_CONTRACT: string = "0x8F861A0e6c1A18936df901828aAD5C9b50c9C073";
+// DEMO_CONTRACT is the deployed copy the site reads when NEXT_PUBLIC_CONTRACT is unset: the register of
+// contract version 2 (stock, appeal, price protection). It is filled in once that register is
+// deployed; while both are empty every page says the contract is not deployed yet, and the whole site
+// still works with NEXT_PUBLIC_MOCK=1. The version 1 register is not read any more: its claims settle
+// at once and it has no appeal, so the version 2 pages would misdescribe it.
+export const DEMO_CONTRACT: string = "";
+
+/**
+ * The commit of the public repository the demo competitor pages are pinned to: the demo shop's three
+ * prefixes are raw.githubusercontent.com/<repo>/<DEMO_COMMIT>/competitors/<competitor>/. Fixed when
+ * the demo shop opens (tools/open-demo-v2.mjs uses it unless given another); a shop's prefixes never change.
+ */
+export const DEMO_COMMIT: string = "f587a00d35e46c5e3cb6da283d831bafff3f1b2b";
 
 export const SITE_NAME = "Price Match";
 export const SITE_TAGLINE = "Found it cheaper? The network checks.";
 export const SITE_LINE =
-  "A lowest-price guarantee that enforces itself: validators open the competitor's page on the live web, agree it is the same product and read its price, and the difference comes back from the shop's bond in the same transaction.";
+  "A lowest-price guarantee that enforces itself: validators open the competitor's page on the live web, agree it is the same product, in stock, and read its price, and the difference comes back from the shop's bond once the appeal window closes.";
 
 /**
  * The public source repository; the footer link is hidden while this is empty. No account name is

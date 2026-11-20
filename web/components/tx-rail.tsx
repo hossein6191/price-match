@@ -180,7 +180,7 @@ export function TxRail({
             {status.status === "UNKNOWN"
               ? "The network has not listed this transaction yet. It usually appears within a few seconds."
               : judged
-                ? "Every validator fetches the page itself and asks its model four questions about it; the contract stores one value only if they agree on it exactly. The page moves on by itself."
+                ? "Every validator fetches the page itself and asks its model up to six questions about it; the contract stores one value only if they agree on it exactly. The page moves on by itself."
                 : "The validators are checking the call. This usually takes under a minute; the page moves on by itself."}
           </p>
         )}
