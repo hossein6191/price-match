@@ -1,7 +1,7 @@
 # Decisions
 
-Why each rule of `contracts/price_match.py` is the way it is, and what is
-verified and what is not.
+Why each rule of `contracts/price_match.py` (contract version 2) is the way it
+is, and what is verified and what is not.
 
 ## 1. The evidence is a live page, fetched by every validator
 
@@ -104,8 +104,9 @@ buyer's credit is untouched and the claim can be made again.
 cut. Cutting would judge the first part of a page and pay on it, while a
 second price or the word "refurbished" might sit in the part nobody read.
 
-**Nothing is written before the round.** Every check in `claim` comes first,
-and the first write follows the agreed value. A static test holds that order.
+**Nothing is written before the round.** Every check in `claim` and in
+`appeal` comes first, and the first write follows the agreed value. A static
+test holds that order for both.
 
 ## 4. The money is already there
 
@@ -113,8 +114,9 @@ and the first write follows the agreed value. A static test holds that order.
 minus theirs, so it can never exceed our price. Reserving exactly that much
 per order, and taking a purchase only while the free bond covers it, means a
 shop can never owe more than it holds. The reservation is released when a
-match pays, when the second judged claim settles without one, or when anyone
-calls `release` after the window. `withdraw_bond` reaches only the free part.
+match settles and pays, when the second judged claim settles without one, or
+when anyone calls `release` after the window. A price drop takes its part of
+it. `withdraw_bond` reaches only the free part.
 
 **The sale goes to the shop at once.** Holding the sale price would make the
 shop wait for every window to end and would add a second pot of money to
@@ -124,9 +126,10 @@ track. The bond already stands behind the guarantee, so the sale need not.
 model and must never raise after taking value, but a claim must cost
 something, or a buyer could send page after page to the network for
 nothing. So the buyer deposits credit beforehand, and a claim stakes 0.01 GEN
-of it. It comes back on matched, not cheaper and unclear, and goes to the
-shop on different: pointing at another product is the one outcome the buyer
-could have avoided by reading the page.
+of it, held until the claim settles. It comes back on matched, not in stock,
+not cheaper and unclear, and goes to the shop on different: pointing at
+another product is the one outcome the buyer could have avoided by reading the
+page.
 
 **Two judged claims per order, and the same page again only after a day.** A
 buyer who pointed at the wrong page has a second chance. A page judged for an
@@ -136,7 +139,83 @@ on that same page later in the window can still be claimed, which a
 lowest-price guarantee owes the buyer; an instant re-roll of a page that just
 came back `unclear` cannot. A claim that does not settle is not counted.
 
-## 5. Every party has a way out
+## 5. Milestone v1: in stock, the appeal, price protection
+
+**"Out of stock" is judged, not claimed.** It is the shop's favourite excuse,
+so it becomes a question the network answers about the page, not a reason the
+shop gives. It is one condition ("available to buy now: in stock, and not a
+pre-order, not sold out and not out of stock"), asked in both orders, and the
+contract combines it: yes twice is `in_stock`, no twice is `out_of_stock`, and
+anything else is `unclear`. No asking carries two conditions. Same product and
+in stock are two separate agreements, and the contract alone requires both
+before it asks the price. The stock question is asked only about the same
+product, and the price only about one in stock, so a page whose stock or
+product does not matter adds no second way for honest validators to disagree.
+A sold-out page is `not_in_stock`, a separate outcome, so the record says why
+nothing was paid. Its fee comes back, because stock can change between the
+moment the buyer looked and the moment of the claim. "Different" is the one
+outcome the buyer could have avoided by reading.
+
+**The page's hash is part of the agreed value.** Every claim stores the sha256
+of the text that was judged, and validators compare it like every other field.
+That makes "the page must read the same for every validator" exact: one byte of
+difference is a disagreement, and the round does not settle. It is what makes
+an appeal fair. A second reading of a page that has changed since is a reading
+of another page, so an appeal judges the same text or nothing.
+
+**Pending, so that nothing is clawed back.** An appeal that can reverse a
+refund already sent would need the buyer to pay it back, and nothing can make
+them. So no judged claim moves money until it settles. A matched refund stays
+in the order's reservation, which is already held for exactly this. The claim
+fee is held by the contract. The order takes no new claim and no price drop
+while a claim is pending. Settlement has three doors: the appeal is judged; the
+side that may appeal settles early, which waives the appeal; or anyone settles
+after `APPEAL_WINDOW` (900 seconds). None of them waits on one account longer
+than the window, and `release` asks for the pending claim to be settled first,
+which anyone can do by then.
+
+**Who may appeal is the side the finding went against.** That is the shop on
+a match and the buyer on everything else, fixed on the claim when it is judged
+(`side`). The other side has nothing to appeal. Without a bond an appeal would
+be a free second roll, so it stakes `APPEAL_BOND` (0.05 GEN, five claim fees)
+from credit, a payable-free path like the claim fee.
+
+**What "overturned" means is one integer.** Every reading is worth a number to
+the buyer: the refund, plus the claim fee unless it goes to the shop. The
+appeal overturns when the second reading moves that number toward the
+appellant: up for a buyer, down for a shop. A smaller refund on a shop's
+appeal of a match is an overturn too, and the smaller refund is paid. A second
+reading that is equal or worse for the appellant is recorded and does not
+replace the first, and the bond goes to the other side. So an appeal can only
+move money toward the appellant, at the price of the bond, and the appellant
+cannot be punished beyond the bond for asking. The comparison is computed by
+the contract from two agreed values. No tolerance sits in a consensus
+comparison.
+
+**Once, and settled in the same call.** The appeal is judged and settled in
+one transaction, so its claim is never pending again and cannot be appealed
+again. Both readings stay on the claim row (`product`, `stock`, `price`,
+`outcome` and `appeal_*`), with the reason as written, where the bond went and
+how it settled.
+
+**The reason is fenced as one party's argument.** The reason is the only text
+the appellant writes that a model reads. It sits in its own `ARGUMENT` block,
+fenced and tagged like the others, after the spec and the page, and a notice
+before the blocks says what it is: one party's argument, untrusted, not
+evidence, and the page alone is judged. It is not filtered for money words the
+way a spec is. A buyer has to be able to say "the price line reads 1.80", and
+the reason goes to every node, so it sways all of them alike or none.
+Both orders and exact equality still apply.
+
+**Price protection is not a model question.** A shop's own price is on chain,
+so `claim_drop` is arithmetic: what the order stands at (`price - dropped`)
+minus the product's current price, paid from the order's own reservation, in
+O(1). The reservation then equals what the order stands at, so a competitor
+match afterwards is measured against the lower price, and a shop can never
+owe more than it reserved. A drop waits while a claim is pending, because the
+pending refund was measured against the price before the drop.
+
+## 6. Every party has a way out
 
 | refused | the way out |
 |---|---|
@@ -149,22 +228,37 @@ came back `unclear` cannot. A claim that does not settle is not counted.
 | a withdrawal of reserved bond | the free part now, the rest once the windows end |
 | a twenty-first product | another shop |
 | a second shop with the same name | another name |
+| a claim while another is pending | the buyer waives its appeal with `settle`, then claims |
+| an appeal with too little credit | `deposit()`, then appeal inside the window |
+| an early settlement by the wrong side | anyone settles once the appeal window has closed |
+| a price drop while a claim is pending | settle the claim, then `claim_drop` |
+| a release while a claim is pending | `settle`, which anyone may once its window has closed, then `release` |
 
 Each is walked as a journey in `TestRoutesOut`.
 
 ## What is verified, and what is not
 
-Verified offline: every rule and refusal above; each of the four outcomes and
-its money; reservation accounting after every step of forty seeded random
-journeys (the contract holds every bond plus every credit, reservations never
-exceed a bond, each order in exactly one state); a failed fetch, a failed
-model call, a short page and a long page each storing nothing; validators
-whose pages differ disagreeing; the two orders disagreeing landing as
-`unclear`; every one of the forty-five demo pages coming to its outcome with a
-scripted reader; the price normalisation table; static rules over the parsed
-source (sender gates, payables, loops, the prompt boundary, the closure, the
-comparison, no float, transfers); and 222 mutants, none surviving.
+Verified offline: every rule and refusal above; each of the five outcomes and
+its money; the appeal both ways for each side (upheld, overturned, a smaller
+match, a worse second reading that does not replace the first), its window,
+its bond, its single use and a changed page that is never judged; the three
+doors of settlement; price protection with repeated drops and a competitor
+match after a drop; reservation accounting after every step of 120 seeded
+random journeys (the contract holds every bond, every credit and every held
+fee, reservations never exceed a bond, each order and claim in exactly one
+state); a failed fetch, a failed model call, a short page and a long page each
+storing nothing; validators whose pages differ, by a price or by one byte,
+disagreeing; the two orders disagreeing landing as `unclear`, for the product,
+the stock and the price; every one of the forty-nine demo pages coming to its
+outcome with a scripted reader; the price normalisation table; static rules
+over the parsed source (sender gates on all nine gated writes, payables, loops,
+the prompt boundary including the argument block, the closure, the
+comparison, no float, transfers, one exit per order and one settlement per
+claim); and 312 mutants, none surviving.
 
-Not verified offline: how real models on Studio read the demo pages. The
-scripted reader in the tests is a stand-in. The on-chain run is the evidence
-for that, and its record goes in the README once it has run.
+Not verified offline: how real models on Studio read the demo pages, the
+stock lines included, and how they take an appellant's reason. The scripted
+reader in the tests is a stand-in, and the "persuaded" network in the appeal
+tests is one written to turn its answers around. The on-chain run of contract
+version 2 is the evidence for that, and its record goes in the README once it
+has run.

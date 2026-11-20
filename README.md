@@ -1,9 +1,42 @@
 # Price Match
 
 A lowest-price guarantee that enforces itself. The validators open the
-competitor's page on the live web, agree it is the same product and read its
-price, and the difference comes back from the shop's bond in the same
-transaction.
+competitor's page on the live web, agree it is the same product, that it is in
+stock and what it costs, and the difference comes back from the shop's bond.
+
+## Milestone v1 — what changed
+
+Contract version 2 answers the three ways a shop still gets out of a
+lowest-price promise: "it's out of stock", "your reading was wrong", and
+"we lowered our own price the day after you bought".
+
+- **In stock, judged.** Inside the same consensus block, every validator now
+  also asks one question, in both orders: does the page show the item
+  available to buy now (in stock, not a pre-order, not sold out)? A match
+  needs the same product and in stock, both agreed. A sold-out or pre-order
+  page is its own outcome, `not_in_stock`, and moves nothing. Every claim
+  stores the sha256 of the page text the validators judged.
+- **One bonded appeal per judged claim.** Every judged claim is pending for 15
+  minutes, and while it is pending no money moves. A matched refund waits in
+  the order's reservation, and the claim fee is held. The side the finding
+  went against (the shop on a match, the buyer on anything else) may appeal
+  once, staking 0.05 GEN of credit with a short reason. The same questions run
+  again in one block about the same text, with the reason fenced as one
+  party's argument. If the second reading is better for the appellant, it
+  replaces the first and the bond comes back. If not, the first reading stands
+  and the bond goes to the other side. Both readings stay on the record. No
+  appeal of an appeal is possible, and once the 15 minutes have passed, anyone
+  may settle, so no one can hold a claim open.
+- **Price protection, in code.** The shop may `reprice` a product. An open
+  order bought at a higher price may `claim_drop` the difference from its own
+  reservation in the same transaction. No model runs, because the evidence is
+  the shop's own price.
+
+Four new demo pages show the same kettle and the same earbuds for less, but
+sold out or on pre-order only. Every other demo page now says "In stock" in
+those words, so the stock question has a plain answer. Tests, mutations, the
+on-chain script and the docs follow the new version (see "Running it"). The
+site in `web/` still follows contract version 1 and is updated separately.
 
 ## The problem
 
@@ -38,38 +71,59 @@ taken only while the shop's free bond covers it.
 
 During the window the buyer **claims** with the address of a page below one of
 the shop's prefixes. In one transaction every validator fetches that page
-itself, the network agrees on two things about it, and the money follows:
+itself, and the network agrees on three things about it: is it the same
+product, is it available to buy now, and what does it cost. The finding is one
+of five:
 
-- **matched**: the page offers the same product for less. The difference goes
-  to the buyer from the reserved bond, in the same transaction, and the order
-  closes.
-- **not cheaper**: the same product, at our price or more. Nothing moves.
+- **matched**: the page offers the same product, in stock, for less. The
+  difference is due to the buyer from the reserved bond.
+- **not in stock**: the same product, but sold out or on pre-order only.
+  Nothing moves.
+- **not cheaper**: the same product in stock, at our price or more. Nothing
+  moves.
 - **different**: another product, such as another model, another size or a
   refurbished unit. The buyer's 0.01 GEN claim fee goes to the shop.
-- **unclear**: the network could not settle either question, for example a
-  page that shows no price. Nothing moves.
+- **unclear**: the network could not settle a question, for example a page
+  that shows no price. Nothing moves.
+
+A judged claim is **pending** for 15 minutes, and until it settles no money
+moves. The side the finding went against may **appeal** once in that time (see
+below). The claim then **settles**: when its appeal is judged, when the side
+that could appeal settles it early (which waives the appeal), or when anyone
+calls `settle` after the 15 minutes. A match pays the buyer from the order's
+reservation and closes the order. On "different" the fee goes to the shop.
+Anything else returns the fee to the buyer's credit. Each order has one
+pending claim at a time.
 
 A claim stakes a 0.01 GEN fee from the buyer's claim-fee credit, which the
 buyer **deposits** beforehand and can **withdraw** at any time. The fee is a
 spam cost: it comes back on every outcome except "different". An order takes
 at most two judged claims. The same page can be judged again for an order only
 a day after its last judgment, so a price that drops later in the window can
-still be claimed, but a page cannot be re-rolled at once. When the window ends,
-anyone may **release** the order, and its reservation goes back to the shop's
-free bond. The shop can **withdraw** free bond at any time.
+still be claimed, but a page cannot be re-rolled at once.
+
+The shop may **reprice** a product at any time. When the new price is below
+what an open order paid, its buyer may **claim_drop** the difference. It is
+paid from that order's own reservation, which then stands at the lower price,
+and a later competitor match is measured against that lower price. When the
+window ends, anyone may **release** the order, and its reservation goes back to
+the shop's free bond. The shop can **withdraw** free bond at any time.
 
 ## How consensus is used
 
 `claim` runs one consensus block. Inside it every node fetches the page with
 `gl.nondet.web.render(url, mode="text")` and asks the model about the same
-fetched text, up to four times:
+fetched text, up to six times. Every question has one condition, and the
+contract combines the answers in code:
 
 | asking | blocks, in order | question |
 |---|---|---|
 | 1 | SPEC, PAGE | Is the item offered on this page the same product as the specification: same brand, model, capacity or size, colour or finish, and condition (new)? Ignore price, shop and every other detail. |
 | 2 | PAGE, SPEC | Is the item offered on this page a different product from the specification: another brand, model, capacity or size, colour or finish, or a condition other than new? Ignore price, shop and every other detail. |
-| 3 | SPEC, PAGE | What is the page's current price for that item, in GEN, as a plain decimal number? If the page shows more than one price or none, answer unclear. |
-| 4 | PAGE, SPEC | the same price question |
+| 3 | SPEC, PAGE | Does the page show the item available to buy now: in stock, and not a pre-order, not sold out and not out of stock? Ignore price, shop and every other detail. |
+| 4 | PAGE, SPEC | the same stock question |
+| 5 | SPEC, PAGE | What is the page's current price for that item, in GEN, as a plain decimal number? If the page shows more than one price or none, answer unclear. |
+| 6 | PAGE, SPEC | the same price question |
 
 The contract turns the answers into the value it stores:
 
@@ -79,23 +133,55 @@ The contract turns the answers into the value it stores:
 | no, then yes | `different` |
 | anything else, including an answer it cannot read | `unclear` |
 
-The price is asked only about a page both framings call the same product. Each
+| askings 3 and 4, asked only about the same product | stock |
+|---|---|
+| yes, and yes | `in_stock` |
+| no, and no | `out_of_stock` |
+| anything else | `unclear` |
+
+The price is asked only about a page that both framings call the same product
+and both stock askings call in stock. Each
 price answer is read as a plain decimal with at most 18 places and turned into
 an integer of atto: `1.80`, `1.8` and `01.80` all become
 `1800000000000000000`, while `1,80`, `$1.80`, `1.80 GEN`,
 `1.800000000000000000001` and `unclear` are not prices. The price is kept only
 when both orders give the same integer; otherwise it is empty.
 
-The stored value is `{"product": "same" | "different" | "unclear", "price":
-"<atto>" or ""}`. Every validator fetches the page and asks every asking
-itself, then compares that value with the leader's by **exact equality**.
-There is no tolerance for a disagreement to hide in. Both presentation orders
-are inside the one block, so a position bias shows up as a disagreement, and
-the second product asking is the mirror of the first, so a model that says yes
-to everything lands as `unclear`.
+The stored value is `{"product": "same" | "different" | "unclear", "stock":
+"in_stock" | "out_of_stock" | "unclear" | "", "price": "<atto>" or "", "page":
+"<sha256 of the page text>"}`. Every validator fetches the page and asks every
+asking itself, then compares that value with the leader's by **exact
+equality**, the page's hash included. There is no tolerance for a disagreement
+to hide in. Both presentation orders are inside the one block, so a position
+bias shows up as a disagreement, and the second product asking is the mirror
+of the first, so a model that says yes to everything lands as `unclear`.
+
+| product | stock | price against ours | outcome |
+|---|---|---|---|
+| `different` | | | `different` |
+| `unclear` | | | `unclear` |
+| `same` | `out_of_stock` | | `not_in_stock` |
+| `same` | `unclear` | | `unclear` |
+| `same` | `in_stock` | none agreed | `unclear` |
+| `same` | `in_stock` | below | `matched` |
+| `same` | `in_stock` | equal or above | `not_cheaper` |
+
+**The appeal** runs the same block again through `appeal(claim, reason)`. The
+same six askings in the same two orders are compared by exact equality. Two
+things differ. The prompt adds a notice before the blocks and an `ARGUMENT`
+block after them, holding the appellant's reason. The notice says that one
+party with money at stake wrote the reason, that it is untrusted and not
+evidence, and that the PAGE alone is judged. And every node checks that the
+page it fetched hashes to the value stored with the claim. A page that has
+changed since is never judged on appeal: the leader raises, nothing is stored,
+and the first reading stands when the window closes. The contract then compares
+the two readings by one number, what each is worth to the buyer (the refund,
+plus the claim fee unless it goes to the shop). The appeal overturns only when
+the second reading moves that number toward the appellant.
 
 The contract alone compares the agreed price with ours. **The model never sees
-our price**, only the spec and the page. No amount is passed into the round,
+our price from the contract**, only the spec, the page and, on an appeal, the
+appellant's reason. No amount is passed into the round,
 and a spec that names a price is refused at the door: a `$` sign, or any of
 `gen`, `atto`, `price`, `prices`, `priced`, `pricing`, `cost`, `costs`, `rrp`
 and `msrp` as a word, in any case. A bare number is allowed, because it cannot
@@ -111,11 +197,12 @@ order, the window, the address and the credit (`[EXPECTED]`) is checked before
 the round starts, so an address outside the prefixes is refused before
 anything is fetched.
 
-The spec and the page are both untrusted: the selling shop wrote one and a
-competitor wrote the other, with money at stake. Every prompt says so before
-the blocks. Each is fenced (`<` and `>` replaced, never deleted) and sits
-between two delimiter lines tagged with the start of its own sha256, so
-neither can write the line that closes it.
+The spec, the page and an appeal's reason are all untrusted: the selling shop
+wrote the spec, a competitor wrote the page, and one of the two parties wrote
+the reason, each with money at stake. Every prompt says so before the blocks.
+Each is fenced (`<` and `>` replaced, never deleted) and sits between two
+delimiter lines tagged with the start of its own sha256, so none can write the
+line that closes it.
 
 ## Why the live web makes this a GenLayer job
 
@@ -138,12 +225,18 @@ buyer gives an address, and the network reads it.
 | `buy(product)`, payable | anyone but the owner | with exactly the price, while the free bond covers it |
 | `deposit()`, payable | anyone | credits the sender's own claim-fee credit |
 | `withdraw()` | anyone | takes back the sender's own credit |
-| `claim(order, url)` | the buyer | inside the window; a page below an accepted prefix; at most 2 judged claims per order; the same page again only a day after its last judgment |
-| `release(order)` | anyone | after the window, while the order is open |
+| `reprice(product, price_atto)` | the owner | any time; 0.1 to 100 GEN |
+| `claim(order, url)` | the buyer | inside the window, no claim pending; a page below an accepted prefix; at most 2 judged claims per order; the same page again only a day after its last judgment |
+| `appeal(claim, reason)` | the side the finding went against: the owner on matched, the buyer on anything else | once, within 15 minutes of the judgment, staking 0.05 GEN of credit; a reason of 10 to 280 characters |
+| `settle(claim)` | the side that may appeal, at any time, which waives the appeal; anyone after the 15 minutes | while the claim is pending |
+| `claim_drop(order)` | the buyer | inside the window, no claim pending, while the product's price is below what the order stands at |
+| `release(order)` | anyone | after the window, while the order is open and no claim is pending |
 
-Five writes refuse by who the sender is: `fund`, `withdraw_bond` and
-`list_product` take only the shop's owner, `buy` refuses the owner, and
-`claim` takes only the order's buyer. The other four refuse nobody by sender,
+Nine writes refuse by who the sender is: `fund`, `withdraw_bond`,
+`list_product` and `reprice` take only the shop's owner, `buy` refuses the
+owner, `claim` and `claim_drop` take only the order's buyer, `appeal` takes
+only the side the finding went against, and `settle` takes only that side
+until the appeal window closes. The other four refuse nobody by sender,
 and each is listed in the test suite with its reason: `open_shop` lets anyone
 open a shop, makes the sender its owner and touches nothing outside it;
 `deposit` only ever credits the sender; `withdraw` only ever pays the sender
@@ -165,17 +258,23 @@ limit)`, `shops_of(address, offset, limit)`, `shops(offset, limit)`,
 |---|---|
 | `fund` | the owner's value into the shop's bond |
 | `buy` | the buyer pays exactly the price; it goes to the shop in the same transaction, and the same amount of bond is reserved |
-| `claim`, matched | our price minus theirs, from the reserved bond to the buyer, in the same transaction; the rest of the reservation is freed |
-| `claim`, not cheaper or unclear | nothing |
-| `claim`, different | 0.01 GEN from the buyer's credit to the shop |
+| `claim` | 0.01 GEN of the buyer's credit is held; nothing else moves while the claim is pending |
+| `settle` (or the judged `appeal`), matched | what the order stands at minus their price, from the reserved bond to the buyer, in the same transaction; the rest of the reservation is freed; the fee back to the buyer's credit |
+| `settle`, not in stock, not cheaper or unclear | the fee back to the buyer's credit |
+| `settle`, different | the 0.01 GEN fee to the shop |
+| `appeal`, upheld | 0.05 GEN from the appellant's credit to the other side's credit |
+| `appeal`, overturned | the bond stays with the appellant; the money follows the second reading |
+| `reprice` | nothing |
+| `claim_drop` | what the order stands at minus the current price, from the order's reservation to the buyer |
 | `release` | nothing leaves; the reservation goes back to the shop's free bond |
 | `withdraw_bond` | free bond to the owner |
 | `deposit` / `withdraw` | claim-fee credit in and out |
 | a refused payable call | everything sent goes back to the sender, in the same transaction |
 
-The contract always holds exactly every shop's bond plus every address's
-credit, and no shop's reservations ever exceed its bond. The offline suite
-checks both after every step of forty seeded random journeys.
+The contract always holds exactly every shop's bond, every address's credit
+and every claim fee held for a pending claim, and no shop's reservations ever
+exceed its bond. The offline suite checks both after every step of 120 seeded
+random journeys that claim, appeal, settle, reprice and claim drops.
 
 ## The demonstration
 
@@ -194,11 +293,14 @@ is fictional.
 | Voltleaf P10 power bank | Brand: Voltleaf. Model: P10-WH. Capacity: 10,000 mAh. Colour: white. Includes a USB-C cable. Condition: new, sealed in the original box. | 1.60 GEN |
 | Larkfield wool throw | Brand: Larkfield. Model: WT-130. Size: 130 x 170 cm. Colour: navy. Condition: new, with the original tags. | 2.20 GEN |
 
-`competitors/` holds forty-five static pages from three fictional competitors
+`competitors/` holds forty-nine static pages from three fictional competitors
 (Northgate Electronics, Bright Basket and Corner Hardware): for each product,
-one page per outcome. Each page names the product in full, its model, colour
-or finish and condition, says `Price: N GEN` in plain text, and carries some
-ordinary shop text. The nine `unclear` pages show the same product with no
+one page per outcome, and four more for the stock. Each page names the product
+in full, its model, colour or finish and condition, says `Price: N GEN` in
+plain text, says whether the item is in stock in plain words ("In stock",
+"Sold out", "Pre-order only"), and carries some ordinary shop text. The four
+stock pages are copies of a matched page with only that one line changed. The
+nine `unclear` pages show the same product with no
 number beside the price at all ("ask at the counter", "shown once the item is
 in your basket", "on request"), so every reader finds no price. The on-chain run reads them from `raw.githubusercontent.com` pinned to
 one commit, so every validator fetches the same bytes.
@@ -250,17 +352,48 @@ one commit, so every validator fetches the same bytes.
 | `bright-basket/larkfield-wool-throw-130-refurbished.html` | wool throw | the same throw, refurbished | different |
 | `northgate/larkfield-wool-throw-130.html` | wool throw | the same throw, 2.60 GEN | not cheaper |
 | `bright-basket/larkfield-wool-throw-130.html` | wool throw | the same throw, no price shown | unclear |
+| `northgate/lumio-k3-kettle-sold-out.html` | kettle | the same kettle, 1.80 GEN, sold out | not in stock |
+| `northgate/lumio-k3-kettle-pre-order.html` | kettle | the same kettle, 1.80 GEN, pre-order only | not in stock |
+| `bright-basket/arcwave-x200-earbuds-sold-out.html` | earbuds | the same earbuds, 3.20 GEN, sold out | not in stock |
+| `bright-basket/arcwave-x200-earbuds-pre-order.html` | earbuds | the same earbuds, 3.20 GEN, pre-order only | not in stock |
 
-The offline suites claim with every one of the 45 pages and check the
+The offline suite claims with every one of the 49 pages and checks the
 outcome and the money.
 
 ## The limits, stated plainly
 
-- **The page must read the same for every validator at the time of the
-  claim.** Each node fetches it separately. A page that changes between
-  fetches, shows a different price per visitor, or hides its price behind a
-  script or a login will not settle, and nothing is stored. Static pages, and
-  pages pinned to a commit, settle.
+- **The page must read the same, byte for byte, for every validator at the
+  time of the claim.** Each node fetches it separately, and the stored value
+  includes the sha256 of the text. A page that changes between fetches,
+  carries a per-visitor token or a timestamp, shows a different price per
+  visitor, or hides its price behind a script or a login will not settle, and
+  nothing is stored. Static pages, and pages pinned to a commit, settle.
+- **"In stock" is what the page says.** The stock question asks whether the
+  page shows the item available to buy now. A page that does not say so in
+  words a reader can see (only a greyed-out button, a stock count behind a
+  script) comes back `unclear`. A page that is in stock at one moment and sold
+  out at the next is judged as it read for every validator at the time of the
+  claim.
+- **An appeal reads the same text or nothing.** An appeal judges the page
+  only if it still hashes as it did when the claim was judged. A competitor
+  that edits its page inside the 15 minutes makes the appeal impossible to
+  judge, and the first reading then stands when the window closes. That
+  favours whoever the first reading favoured, and a shop that also controls a
+  competitor page could use it to block a buyer's appeal. The first rule about
+  prefixes below covers it: a prefix should name pages the shop cannot write.
+- **The appellant's reason reaches the model.** It is fenced, sits in its own
+  block after the spec and the page, and is introduced as one party's
+  argument that is untrusted and not evidence. It may still say anything,
+  including a number. Both presentation orders and exact equality make a
+  reason that sways one reading but not the other land as a different value
+  or no agreement at all, but they cannot make a model immune to it. Only the
+  appellant writes; the other side cannot answer. An appeal can only move the
+  money toward the appellant or cost it the bond. A second reading that is
+  worse for the appellant is recorded and does not replace the first.
+- **A pending claim holds its money for 15 minutes.** A match is paid when it
+  settles, not at once, and the next claim on the order waits until it does.
+  The side that may appeal can settle at once, which waives the appeal. After
+  15 minutes anyone may settle, so a claim never waits on one account.
 - **Whoever owns the pages under a prefix owns the evidence.** The shop
   chooses the competitors it promises to match, and the buyer sees them before
   buying. A prefix should name a directory that only that competitor can
@@ -277,13 +410,20 @@ outcome and the money.
 - **A refund is our price minus theirs, at most the whole price,** and only
   from the bond reserved for that order. The shop can never owe more than it
   reserved.
+- **Price protection follows the current price.** `claim_drop` pays what the
+  order stands at minus the product's price at the moment it is called. A shop
+  that lowers a price and raises it again before the buyer calls `claim_drop`
+  owes nothing for the gap. The buyer should claim while the price is down.
+  No model is asked: it is the shop's own price, stored on chain. A drop
+  waits while a claim on the order is pending.
 - **Two judged claims per order; the same page again only after a day.** A
   page judged for an order can be judged again for it 86,400 seconds after its
   last judgment, while the window is open, so a later price drop can still be
   claimed. In a window shorter than a day, that means another page. A claim
   that does not settle (a failed fetch or a split vote) does not count. A
   judged claim is final, `unclear` included.
-- **Someone has to call `release`.** Anyone may, and it moves the reservation
+- **Someone has to call `settle` and `release`.** Anyone may, once the appeal
+  window or the guarantee window is over. `release` moves the reservation
   only back to the shop's free bond, but the contract does not run by itself.
 - **The spec is the shop's own description.** It is the only shop text a
   model sees, and the buyer reads it before buying. A match must be the same
@@ -291,7 +431,7 @@ outcome and the money.
   the spec counts. A spec may not name a price with a `$` sign or a money word,
   so "2nd Gen" is written "second generation".
 - **Texts are printable ASCII on one line.** Names 3 to 60 characters, titles
-  3 to 80, specs 40 to 400. Addresses use letters, digits and `- . _ ~ /`
+  3 to 80, specs 40 to 400, appeal reasons 10 to 280. Addresses use letters, digits and `- . _ ~ /`
   only, with a lowercase host and no query, fragment, port, empty segment, `.`
   or `..`; a prefix is at most 160 characters and ends with `/`, a page
   address at most 200. Prices are 0.1 to 100 GEN; a window is 20 minutes to
@@ -302,7 +442,7 @@ outcome and the money.
 ```
 contracts/price_match.py     the contract
 web/                         the site (Next.js), its tests and tools/open-demo-shop.mjs
-competitors/                 the 45 demo competitor pages, their index and their stylesheet
+competitors/                 the 49 demo competitor pages, their index and their stylesheet
 tests/test_pure.py           the offline suite, including the consensus round with a world per node
 tests/MUTATIONS.md           every defence removed in turn, and the test that caught it
 tests/on_chain/smoke.mjs     a throwaway-account run against Studio
@@ -320,10 +460,10 @@ genvm-lint check contracts/price_match.py
 python tools/mutate.py                    # rewrites tests/MUTATIONS.md; exits 1 if a mutant survives
 ```
 
-On this repository as it stands, `pytest tests/ -q` gives **137 passed** in
-under a second. `genvm-lint check` (genvm-linter 0.11.0) prints
-`Lint passed (3 checks)` and reports 21 methods, 12 view and 9 write.
-`python tools/mutate.py` removes or inverts **222 defences** one at a time,
+On this repository as it stands, `pytest tests/ -q` gives **173 passed** in
+a few seconds. `genvm-lint check` (genvm-linter 0.11.0) prints
+`Lint passed (3 checks)` and reports 25 methods, 12 view and 13 write.
+`python tools/mutate.py` removes or inverts **312 defences** one at a time,
 and **none survives**.
 
 The on-chain run uses three throwaway keys it generates itself (SHOP, BUYER,
@@ -333,21 +473,27 @@ commit, so push the repository first and pass that commit:
 
 ```
 npm ci
-COMMIT=<40-character sha> node tests/on_chain/smoke.mjs        # about forty minutes: the windows are thirty
+COMMIT=<40-character sha> node tests/on_chain/smoke.mjs        # about forty minutes: the window is thirty
 COMMIT=<sha> RESUME=1 node tests/on_chain/smoke.mjs            # continue from the saved state
 ```
 
 `REPO=<owner>/<name>` names the GitHub repository when the git remote does
 not. The script fetches the demo pages itself before it deploys anything and
-stops if they are not at that commit. It tells the story of the demonstration:
-a purchase refused for lack of bond and refunded; three purchases, each sale
-forwarded and reserved; a matched claim paid 0.20 GEN from the bond in the
-same transaction; a refurbished page judged another product, the fee to the
-shop; a dearer page not cheaper; a stranger's claim, an address outside the
-prefixes and a claim after the window, all refused; two releases; the bond and
-the credit withdrawn. It prints a PASS or FAIL line for every check, the
-balances before and after every step that moves money, `N passed, M failed`,
-and the contract address.
+stops if they are not at that commit. It tells the story of contract version
+2: a purchase refused for lack of bond and refunded; two purchases, each sale
+forwarded and reserved; a cheaper page for the same kettle that is sold out,
+judged `not_in_stock`, with nothing moved and the shop's appeal of it refused;
+the buyer waiving its appeal; the in-stock page matched, its 0.20 GEN held
+pending; the buyer's appeal and a stranger's early settlement refused; the
+shop's appeal with a false reason, upheld, so the refund reaches the buyer in
+that transaction and the shop's 0.05 GEN bond goes to the buyer's credit; a
+second appeal refused; the earbuds repriced from 3.50 to 3.00 GEN and the
+0.50 GEN drop claimed from the order's reservation, with a stranger's reprice
+and drop and a second drop refused; a release; the bond and the credit
+withdrawn. It must run straight through from the match to the shop's appeal,
+which has to land inside the 15-minute appeal window. It prints a PASS or FAIL
+line for each of its 42 checks, the balances before and after every step that
+moves money, `N passed, M failed`, and the contract address.
 
 ## The site
 
@@ -455,9 +601,13 @@ GenLayer Studio, chain 61999, RPC `https://studio.genlayer.com/api`, explorer
 `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` in its first
 line.
 
+## Evidence: contract version 2 (milestone v1)
+
+The on-chain run is recorded here once it has run.
+
 ## Evidence
 
-Run on 12 and 13 October 2026 on GenLayer Studio (chain 61999) by `tests/on_chain/smoke.mjs`, from three generated
+Contract version 1, before milestone v1. Run on 12 and 13 October 2026 on GenLayer Studio (chain 61999) by `tests/on_chain/smoke.mjs`, from three generated
 accounts, one per role: **SHOP**, **BUYER** and **STRANGER**. The competitor pages were the files in `competitors/`
 read from `raw.githubusercontent.com` pinned to commit `2f4e6ab683aa1cc1e3b97c9785de461de07b3f92`. **34 checks passed,
 0 failed**; the whole log is `tests/on_chain/smoke-run.log`. The run paused overnight during the 30-minute windows and
