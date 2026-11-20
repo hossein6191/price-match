@@ -37,8 +37,8 @@ lowest-price promise: "it's out of stock", "your reading was wrong", and
 Four new demo pages show the same kettle and the same earbuds for less, but
 sold out or on pre-order only. Every other demo page now says "In stock" in
 those words, so the stock question has a plain answer. Tests, mutations, the
-on-chain script and the docs follow the new version (see "Running it"). The
-site in `web/` still follows contract version 1 and is updated separately.
+on-chain script, the docs and the site in `web/` all follow the new version
+(see "Running it" and "The site").
 
 ## The problem
 
