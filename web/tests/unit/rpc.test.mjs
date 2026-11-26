@@ -18,6 +18,8 @@ import {
   clearCooldown,
   cooldownRemainingMs,
   createReadCache,
+  decodeTx,
+  isDone,
   isMissingMethodError,
   isRateLimitError,
   noteFailure,
@@ -113,4 +115,17 @@ test("a leader receipt decodes to its text, and nothing throws on rubbish", () =
   assert.equal(base64ToText(Buffer.from("verdict: breaks", "utf8").toString("base64")), "verdict: breaks");
   assert.equal(base64ToText(Buffer.from("café ☕", "utf8").toString("base64")), "café ☕");
   assert.equal(base64ToText(""), "");
+});
+
+test("Studio v0.123: a write is done only when it is FINALIZED with its execution result", () => {
+  const votes = { "0xa": "agree", "0xb": "agree", "0xc": "agree" };
+  assert.equal(isDone(decodeTx({ status: "ACCEPTED", consensus_data: { votes } })), false);
+  assert.equal(isDone(decodeTx({ status: "FINALIZED", consensus_data: { votes } })), false);
+  const refused = decodeTx({ status: "FINALIZED", txExecutionResultName: "FINISHED_WITH_ERROR", consensus_data: { votes } });
+  assert.equal(isDone(refused), true);
+  assert.equal(refused.exec, "ERROR");
+  const ok = decodeTx({ status: "FINALIZED", txExecutionResultName: "FINISHED_WITH_RETURN", consensus_data: { votes } });
+  assert.equal(ok.exec, "SUCCESS");
+  assert.equal(ok.execution, "FINISHED_WITH_RETURN");
+  assert.equal(isDone(decodeTx({ status: "CANCELED" })), true);
 });

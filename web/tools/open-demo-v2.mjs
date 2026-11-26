@@ -9,7 +9,8 @@
 // <key.json> is a JSON file holding the demo shop's throwaway Studio key, as {"privateKey": "0x..."}
 // (also read: "private_key", "key", "DEMO_SHOP_KEY"), or a JSON string of the key. The key is read from
 // that file only, never printed and never written anywhere; the same key goes into the site host's
-// DEMO_SHOP_KEY. [commit] defaults to DEMO_COMMIT in lib/config.ts. Needs Node 22.18 or later.
+// DEMO_SHOP_KEY. [commit] defaults to DEMO_COMMIT in lib/config.ts. Studio v0.123 charges fees: every
+// write carries the fees quoted by estimateTransactionFees() (lib/fees.ts). Needs Node 22.18 or later.
 
 import { readFileSync } from "node:fs";
 import { createAccount, createClient } from "genlayer-js";
@@ -17,6 +18,7 @@ import { studionet } from "genlayer-js/chains";
 
 import { DEMO_COMMIT } from "../lib/config.ts";
 import { cleanKey, keyProblem } from "../lib/demo-key.ts";
+import { quoteFees } from "../lib/fees.ts";
 import { APPEAL_BOND } from "../lib/rules.ts";
 
 const fail = (message) => {
@@ -82,7 +84,7 @@ if (credit < 0n) fail("could not read the demo shop's credit from Studio; run th
 if (credit >= APPEAL_BOND) {
   console.log(`SKIP  deposit: the demo shop already holds ${credit} atto of credit, enough for an appeal bond`);
 } else {
-  const hash = await client.writeContract({ address: register.trim(), functionName: "deposit", args: [], value: WANT - credit });
+  const hash = await client.writeContract({ address: register.trim(), functionName: "deposit", args: [], value: WANT - credit, fees: await quoteFees(client) });
   console.log(`SENT  deposit of ${WANT - credit} atto for appeal bonds  https://explorer-studio.genlayer.com/tx/${hash}`);
 }
 console.log(`\nSet DEMO_CONTRACT in lib/config.ts to ${register.trim()} and DEMO_SHOP_KEY on the site's host to the same key.`);

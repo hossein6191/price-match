@@ -19,15 +19,18 @@
 // Lane Goods 2", then "3". The site's server takes the newest demo-named shop of the key that lists
 // products, so it follows on its own once the first product is listed; the earlier shop stays open
 // for the orders already in it. Every page the shop will accept is fetched first and compared with
-// competitors/ in this checkout, so a wrong COMMIT stops the script before anything is sent. Each
-// transaction is followed to FINALIZED before the next one goes out. Needs Node 22.18 or later (it
-// reads lib/*.ts directly).
+// competitors/ in this checkout, so a wrong COMMIT stops the script before anything is sent. Studio
+// v0.123 charges fees: each write carries the fees quoted by estimateTransactionFees() (lib/fees.ts) and
+// is followed until it is FINALIZED with its execution result before the next one goes out. Needs Node
+// 22.18 or later (it reads lib/*.ts directly).
 
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createAccount, createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { getAddress } from "viem";
+
+import { EXECUTION_DONE, quoteFees } from "../lib/fees.ts";
 
 import { REPO_URL } from "../lib/config.ts";
 import { cleanKey, keyProblem } from "../lib/demo-key.ts";
@@ -98,7 +101,8 @@ async function follow(hash) {
     await sleep(4000);
     const tx = await rpc("eth_getTransactionByHash", [hash]);
     const status = String(tx?.status ?? "");
-    if (status === "FINALIZED" || status === "CANCELED" || status === "UNDETERMINED") {
+    const execution = String(tx?.txExecutionResultName ?? "");
+    if ((status === "FINALIZED" && EXECUTION_DONE.has(execution)) || status === "CANCELED" || status === "UNDETERMINED") {
       const lr = tx.consensus_data?.leader_receipt;
       const one = Array.isArray(lr) ? lr[0] : lr;
       let text = "";
@@ -115,7 +119,7 @@ async function follow(hash) {
         json = null;
       }
       const votes = Object.values(tx.consensus_data?.votes ?? {});
-      return { status, json, agree: votes.filter((v) => v === "agree").length, of: votes.length, exec: one?.execution_result ?? "", text };
+      return { status, json, agree: votes.filter((v) => v === "agree").length, of: votes.length, exec: execution || (one?.execution_result ?? ""), text };
     }
   }
   return { status: "TIMEOUT", json: null, agree: 0, of: 0, exec: "", text: "" };
@@ -173,7 +177,7 @@ if (DRY) {
 async function send(functionName, args, value = 0n) {
   for (let tries = 1; ; tries++) {
     try {
-      const hash = await client.writeContract({ address: REGISTER, functionName, args, value });
+      const hash = await client.writeContract({ address: REGISTER, functionName, args, value, fees: await quoteFees(client) });
       const r = await follow(hash);
       return { ...r, hash };
     } catch (e) {

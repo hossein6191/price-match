@@ -12,6 +12,7 @@ import { getAddress, type Address } from "viem";
 
 import { balanceOf, contractAddress, isMock, readAccount, readClaims, readOrder, readProduct, readShopsOf, studio, txStatus } from "./chain";
 import { cleanKey, keyProblem } from "./demo-key";
+import { quoteFees } from "./fees";
 import { DEMO_LIMITS, createLimiter } from "./demo-limit";
 import { DEMO_APPEAL_REASON, RESTOCK_AMOUNT, demoAppealProblem, pickDemoShop, repricePlan, restockProblem } from "./demo-shop";
 import { APPEAL_BOND } from "./rules";
@@ -110,7 +111,9 @@ export async function sendRestock(product: string): Promise<DemoAnswer> {
     const hash = await serial(async () => {
       await ensureBalance(a.address, amount);
       const client = createClient({ chain: studio, account: a });
-      return client.writeContract({ address: contractAddress() as Address, functionName: "fund", args: [status.shop], value: amount });
+      // Studio v0.123: every write carries the fees quoted for it (lib/fees.ts), paid from the demo key's balance.
+      const fees = await quoteFees(client);
+      return client.writeContract({ address: contractAddress() as Address, functionName: "fund", args: [status.shop], value: amount, fees });
     });
     if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error("no hash");
     limiter.hold(product, DEMO_LIMITS.sentHoldMs, Date.now());
@@ -126,7 +129,8 @@ async function sign(a: Account, functionName: string, args: (string | number)[],
   return serial(async () => {
     await ensureBalance(a.address, value);
     const client = createClient({ chain: studio, account: a });
-    const hash = await client.writeContract({ address: contractAddress() as Address, functionName, args, value });
+    const fees = await quoteFees(client);
+    const hash = await client.writeContract({ address: contractAddress() as Address, functionName, args, value, fees });
     if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error("no hash");
     return hash;
   });
@@ -162,7 +166,8 @@ async function landed(hash: string, ms: number): Promise<boolean> {
     await sleep(3000);
     try {
       const s = await txStatus(hash);
-      if (s.status === "ACCEPTED" || s.status === "FINALIZED") return s.exec !== "ERROR" && s.result?.ok !== false;
+      // Studio v0.123 records the execution result on the transaction; until it does, keep waiting.
+      if ((s.status === "ACCEPTED" || s.status === "FINALIZED") && (s.execution || s.exec)) return s.execution !== "FINISHED_WITH_ERROR" && s.exec !== "ERROR" && s.result?.ok !== false;
       if (s.status === "CANCELED" || s.undetermined) return false;
     } catch {
       /* a dropped poll is not a failed transaction */

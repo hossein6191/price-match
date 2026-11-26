@@ -12,6 +12,7 @@
 // what contracts/price_match.py does not do.
 
 import { clockTime, gen, span, windowLabel } from "./format.ts";
+import { FEE_NOTE } from "./fees.ts";
 import type { EndedBy, OrderStatus, Outcome, Side } from "./rules.ts";
 import type { WriteFn } from "./types.ts";
 
@@ -146,7 +147,7 @@ export function signGuide(s: SignInput): Guide {
     need: "Confirm it in your wallet, or reject it and nothing is sent.",
     leave: "Stay on this page until you have answered the wallet; this page then follows the transaction for you.",
     canLeave: false,
-    money,
+    money: `${money} ${FEE_NOTE}`,
   });
 }
 

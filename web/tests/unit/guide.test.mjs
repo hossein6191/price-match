@@ -46,6 +46,7 @@ test("the wallet prompt, for every call, live and in the demo build", () => {
       fivelines(g, `sign ${fn} ${mock}`);
       assert.equal(g.canLeave, false, "nobody walks away from an open wallet prompt");
       if (!mock) assert.match(g.need, /Confirm it in your wallet/);
+      if (!mock) assert.match(g.money, /small network fee, a deposit of about 0\.1 GEN; the part it does not use comes back at once/);
     }
 });
 

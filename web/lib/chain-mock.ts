@@ -1110,7 +1110,7 @@ const NO_VOTES = { agree: 0, disagree: 0, idle: 0 };
 export async function txStatus(hash: string): Promise<TxStatus> {
   await delay(60);
   const p = pending.get(hash);
-  if (!p) return { status: "UNKNOWN", votes: NO_VOTES, applied: null, undetermined: false, exec: null, result: null, message: "" };
+  if (!p) return { status: "UNKNOWN", votes: NO_VOTES, applied: null, undetermined: false, exec: null, execution: "", result: null, message: "" };
   p.polls += 1;
   // A claim or an appeal is read by every validator, up to six askings each, so it moves slower than a plain call.
   const stages = p.judged ? Math.max(1, Math.floor(p.polls / 2)) : p.polls;
@@ -1125,6 +1125,7 @@ export async function txStatus(hash: string): Promise<TxStatus> {
       applied: done ? false : null,
       undetermined: done,
       exec: done ? "ERROR" : null,
+      execution: done ? "FINISHED_WITH_ERROR" : "",
       result: null,
       message: done ? p.error : "",
     };
@@ -1137,6 +1138,7 @@ export async function txStatus(hash: string): Promise<TxStatus> {
     applied: done ? true : null,
     undetermined: false,
     exec: done ? (p.error ? "ERROR" : "SUCCESS") : null,
+    execution: done ? (p.error ? "FINISHED_WITH_ERROR" : "FINISHED_WITH_RETURN") : "",
     result: done && !p.error ? p.result : null,
     message: done ? p.error || JSON.stringify(p.result) : "",
   };

@@ -187,6 +187,8 @@ export type TxStatus = {
   undetermined: boolean;
   /** SUCCESS | ERROR | null */
   exec: string | null;
+  /** FINISHED_WITH_RETURN | FINISHED_WITH_ERROR once Studio records the execution result, else "" */
+  execution: string;
   /** the contract's JSON return, if any */
   result: Record<string, unknown> | null;
   /** the decoded return or error text */

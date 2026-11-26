@@ -19,6 +19,7 @@ import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { getAddress, type Address } from "viem";
 import { notify } from "./browser-store";
+import { quoteFees } from "./fees";
 import { contractAddress, demoShopFallback } from "./config";
 import { RATE_LIMITED, createReadCache, decodeTx, isMissingMethodError, noteFailure, rpc, sleep, waitForCooldown, withRetry, type RawTx } from "./rpc";
 import {
@@ -454,16 +455,19 @@ export async function write(call: Call): Promise<string> {
   if (!address) throw new Error("The contract is not deployed yet, so there is nothing to sign.");
   const signer = getSigner();
   if (!signer) throw new Error("Connect a wallet first.");
-  // Studio is gasless and the SDK skips its own chain check for it, so the refusal to sign on
-  // another chain lives here, and it says which chain the wallet is on.
+  // The SDK skips its own chain check for Studio, so the refusal to sign on another chain lives here,
+  // and it says which chain the wallet is on.
   const chainId = await getChainId(signer.provider);
   if (chainId !== CHAIN_ID) throw new Error(WRONG_CHAIN(chainId));
   const client = createClient({ chain: studio, account: signer.address as Address, provider: signer.provider });
+  // Studio v0.123: the fee quote goes with the call (lib/fees.ts); the wallet shows it on top of any value.
+  const fees = await quoteFees(client);
   const hash = await client.writeContract({
     address: address as Address,
     functionName: call.fn,
     args: call.args,
     value: call.value ?? 0n,
+    fees,
   });
   if (typeof hash !== "string" || !hash.startsWith("0x")) throw new Error("The wallet returned no transaction hash.");
   return hash;
